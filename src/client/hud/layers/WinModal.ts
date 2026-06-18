@@ -1,19 +1,11 @@
-import { html, LitElement, TemplateResult } from "lit";
+import { html, LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { translateText } from "../../../client/Utils";
 import { EventBus } from "../../../core/EventBus";
 import { RankedType } from "../../../core/game/Game";
 import { GameUpdateType } from "../../../core/game/GameUpdates";
-import { getUserMe } from "../../Api";
-import "../../components/CosmeticButton";
 import { Controller } from "../../Controller";
-import {
-  fetchCosmetics,
-  purchaseCosmetic,
-  resolveCosmetics,
-} from "../../Cosmetics";
 import { crazyGamesSDK } from "../../CrazyGamesSDK";
-import { Platform } from "../../Platform";
 import { SendWinnerEvent } from "../../Transport";
 import { GameView } from "../../view";
 
@@ -35,9 +27,6 @@ export class WinModal extends LitElement implements Controller {
 
   @state()
   private isRankedGame = false;
-
-  @state()
-  private patternContent: TemplateResult | null = null;
 
   private _title: string;
 
@@ -101,58 +90,11 @@ export class WinModal extends LitElement implements Controller {
   }
 
   innerHtml() {
-    return this.renderPatternButton();
-  }
-
-  renderPatternButton() {
-    return html`
-      <div class="text-center mb-6 bg-black/30 p-2.5 rounded-sm">
-        <h3 class="text-xl font-semibold text-white mb-3">
-          ${translateText("win_modal.support_openfront")}
-        </h3>
-        <p class="text-white mb-3">
-          ${translateText("win_modal.territory_pattern")}
-        </p>
-        <div class="flex justify-center">${this.patternContent}</div>
-      </div>
-    `;
-  }
-
-  async loadPatternContent() {
-    const me = await getUserMe();
-    const cosmetics = await fetchCosmetics();
-
-    const purchasable = resolveCosmetics(cosmetics, me, null).filter(
-      (r) => r.type === "pattern" && r.relationship === "purchasable",
-    );
-
-    if (purchasable.length === 0) {
-      this.patternContent = html``;
-      return;
-    }
-
-    // Shuffle the array and take patterns based on screen size
-    const shuffled = [...purchasable].sort(() => Math.random() - 0.5);
-    const maxPatterns = Platform.isMobileWidth ? 1 : 3;
-    const selected = shuffled.slice(0, Math.min(maxPatterns, shuffled.length));
-
-    this.patternContent = html`
-      <div class="flex gap-4 flex-wrap justify-start">
-        ${selected.map(
-          (r) => html`
-            <cosmetic-button
-              .resolved=${r}
-              .onPurchase=${purchaseCosmetic}
-            ></cosmetic-button>
-          `,
-        )}
-      </div>
-    `;
+    return html``;
   }
 
   async show() {
     crazyGamesSDK.gameplayStop();
-    await this.loadPatternContent();
     // Check if this is a ranked game
     this.isRankedGame =
       this.game.config().gameConfig().rankedType === RankedType.OneVOne;
