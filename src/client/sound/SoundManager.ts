@@ -37,7 +37,7 @@ export class SoundManager {
           volume: 0,
         }),
         new Howl({
-          src: [assetUrl("sounds/music/openfront.mp3")],
+          src: [assetUrl("sounds/music/theme.mp3")],
           loop: false,
           onend: this.playNext.bind(this),
           volume: 0,

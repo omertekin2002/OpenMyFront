@@ -197,7 +197,7 @@ class Client {
 
     const openFrontFont = new FontFace(
       "OpenFront",
-      `url(${assetUrl("fonts/OpenFront.ttf")})`,
+      `url(${assetUrl("fonts/display-font.ttf")})`,
     );
     document.fonts.add(openFrontFont);
     openFrontFont.load().catch(() => {});
