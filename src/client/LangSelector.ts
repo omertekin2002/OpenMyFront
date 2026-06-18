@@ -226,17 +226,12 @@ export class LangSelector extends LitElement {
       "o-modal",
       "o-button",
       "territory-patterns-modal",
-      "store-modal",
       "pattern-input",
       "fluent-slider",
       "news-modal",
       "news-button",
-      "account-modal",
-      "leaderboard-modal",
       "flag-input-modal",
       "flag-input",
-      "matchmaking-button",
-      "token-login",
     ];
 
     document.title = this.translateText("main.title") ?? document.title;

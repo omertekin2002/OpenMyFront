@@ -9,7 +9,7 @@
     "close": "Luk"
   },
   "main": {
-    "title": "OpenFront (ALPHA)",
+    "title": "OpenMyFront (ALPHA)",
     "join_discord": "Deltag i vores Discord!",
     "login_discord": "Log ind med Discord",
     "checking_login": "Tjekker login...",
@@ -580,8 +580,8 @@
       "cursor": "Musemarkør",
       "hand": "Hånd",
       "radiation": "Stråling",
-      "openfront_qr": "OpenFront.io QR kode",
-      "openfront": "OpenFront",
+      "openfront_qr": "OpenMyFront QR kode",
+      "openfront": "OpenMyFront",
       "t_rex": "T-Rex",
       "embelem": "Emblem",
       "contributor": "Bidragyder",

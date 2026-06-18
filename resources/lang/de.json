@@ -20,7 +20,7 @@
     "none": "Nichts"
   },
   "main": {
-    "title": "OpenFront (ALPHA)",
+    "title": "OpenMyFront (ALPHA)",
     "join_discord": "Discord",
     "login_discord": "Anmelden mit Discord",
     "checking_login": "Überprüfe Login...",
@@ -522,7 +522,7 @@
     "not_enough_money": "Nicht genug Geld"
   },
   "win_modal": {
-    "support_openfront": "Unterstütze OpenFront!",
+    "support_openfront": "Unterstütze OpenMyFront!",
     "territory_pattern": "Kaufe ein Gebietsmuster, um werbefrei zu spielen!",
     "died": "Du bist gestorben",
     "your_team": "Dein Team hat gewonnen!",
@@ -533,7 +533,7 @@
     "keep": "Weiterspielen",
     "spectate": "Zuschauen",
     "wishlist": "Zur Steam-Wunschliste hinzufügen!",
-    "ofm_winter": "OpenFront Masters Winterturnier!",
+    "ofm_winter": "OpenMyFront Masters Winterturnier!",
     "ofm_winter_description": "Nimm am Wettbewerbsturnier teil und tritt gegen die besten Spieler an",
     "join_tournament": "Turnier beitreten",
     "join_discord": "Tritt unserer Discord-Community bei!",

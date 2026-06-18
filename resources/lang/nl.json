@@ -23,7 +23,7 @@
     "click_to_copy": "Klik om te kopiëren"
   },
   "main": {
-    "title": "OpenFront (ALFA)",
+    "title": "OpenMyFront (ALFA)",
     "join_discord": "Discord",
     "login_discord": "Login met Discord",
     "sign_in": "Aanmelden",
@@ -40,7 +40,7 @@
     "wiki": "Wiki",
     "privacy_policy": "Privacybeleid",
     "terms_of_service": "Servicevoorwaarden",
-    "copyright": "© OpenFront™ en Bijdragers",
+    "copyright": "© OpenMyFront en Bijdragers",
     "reddit": "Reddit",
     "play": "Spelen",
     "news": "Nieuws",
@@ -633,7 +633,7 @@
     "not_enough_money": "Niet genoeg goud"
   },
   "win_modal": {
-    "support_openfront": "Steun OpenFront!",
+    "support_openfront": "Steun OpenMyFront!",
     "territory_pattern": "Koop een skin om advertentievrij te gaan!",
     "died": "Je bent dood",
     "your_team": "Je team heeft gewonnen!",
@@ -645,7 +645,7 @@
     "keep": "Blijf spelen",
     "spectate": "Toekijken",
     "wishlist": "Op je Verlanglijst op Steam!",
-    "ofm_winter": "OpenFront Masters Wintertoernooi!",
+    "ofm_winter": "OpenMyFront Masters Wintertoernooi!",
     "ofm_winter_description": "Doe mee met het competitieve toernooi en concurreer met de beste spelers",
     "join_tournament": "Toernooi toetreden",
     "join_discord": "Word lid van onze Discord-gemeenschap!",

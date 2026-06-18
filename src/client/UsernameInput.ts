@@ -192,26 +192,9 @@ export class UsernameInput extends LitElement {
       </div>`;
     }
 
-    const tag = this.clanTag;
-    return html`<button
-      id="clan-tag-validation-error"
-      type="button"
-      class="${className} underline decoration-red-200/50 underline-offset-2 hover:bg-red-800/90 focus:outline-none focus:ring-2 focus:ring-red-200/70"
-      @click=${() => this.openClanJoinModal(tag)}
-    >
+    return html`<div id="clan-tag-validation-error" class=${className}>
       ${content}
-    </button>`;
-  }
-
-  private openClanJoinModal(tag: string) {
-    window.showPage?.("page-clan");
-    void customElements.whenDefined("clan-modal").then(() => {
-      document
-        .querySelector<
-          HTMLElement & { open: (args: { tag: string }) => void }
-        >("clan-modal")
-        ?.open({ tag });
-    });
+    </div>`;
   }
 
   private handleClanTagChange(e: Event) {

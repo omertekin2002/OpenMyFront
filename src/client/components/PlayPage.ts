@@ -15,8 +15,6 @@ export class PlayPage extends LitElement {
         id="page-play"
         class="flex flex-col gap-2 w-full px-0 lg:px-4 min-h-0"
       >
-        <token-login class="absolute"></token-login>
-
         <!-- Mobile: Fixed top bar -->
         <div
           class="lg:hidden fixed left-0 right-0 top-0 z-40 pt-[env(safe-area-inset-top)] bg-surface border-b border-white/10"
@@ -54,7 +52,7 @@ export class PlayPage extends LitElement {
             >
               <img
                 src=${assetUrl("images/OpenFrontLogo.svg")}
-                alt="OpenFront"
+                alt="OpenMyFront"
                 class="h-full w-auto"
               />
             </div>

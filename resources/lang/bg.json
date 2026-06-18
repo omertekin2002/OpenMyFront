@@ -29,7 +29,7 @@
     "map_default": "Карта по подразбиране"
   },
   "main": {
-    "title": "OpenFront (АЛФА)",
+    "title": "OpenMyFront (АЛФА)",
     "login_discord": "Влез с Discord",
     "sign_in": "Вход",
     "discord_avatar_alt": "Discord профилна снимка",
@@ -41,7 +41,7 @@
     "wiki": "Wiki",
     "privacy_policy": "Поверителност",
     "terms_of_service": "Условия за ползване",
-    "copyright": "© OpenFront™ and Contributors",
+    "copyright": "© OpenMyFront and Contributors",
     "play": "Играй",
     "news": "Новини",
     "store": "Магазин",
@@ -67,7 +67,7 @@
     "copied_to_clipboard": "Информацията бе копирана в клипборда! Чувствай се свободен да я споделиш в Discord-а ни, ако имаш нужда от помощ.",
     "os": "ОС",
     "device_pixel_ratio": "Съотношение на пикселите на устройството",
-    "chromium_tip": "OpenFront работи най-добре в браузъри, базирани на Chromium.",
+    "chromium_tip": "OpenMyFront работи най-добре в браузъри, базирани на Chromium.",
     "hardware_acceleration_tip": "Увери се, че хардуерното ускорение е активирано в настройките на браузъра ти за оптимална производителност.",
     "renderer": "Изобразител",
     "max_texture_size": "Максимален размер на текстурата",
@@ -87,7 +87,7 @@
   },
   "help_modal": {
     "video_tutorial": "Видео урок за игра",
-    "video_tutorial_title": "Урок за игра на OpenFront.io",
+    "video_tutorial_title": "Урок за игра на OpenMyFront",
     "hotkeys": "Бързи клавиши",
     "table_key": "Бутон",
     "table_action": "Действие",
@@ -177,7 +177,7 @@
     "build_mirv": "МИРВ",
     "build_mirv_desc": "Най-мощната бомба в играта. Разделя се на по-малки бомби, които покриват огромна територия. Поврежда само играча, върху който първо си щракнал, за да го построиш. Поражда се от най-близкия ракетен силоз и се приземява в областта, в която първо си щракнал, за да го построиш.",
     "player_icons": "Иконки на играча",
-    "troubleshooting_desc": "Ако имаш проблеми с производителността, сривове или други проблеми, докато играеш OpenFront, моля, посети страницата ни за отстраняване на проблеми за помощ при диагностицирането и отстраняването на често срещани проблеми:",
+    "troubleshooting_desc": "Ако имаш проблеми с производителността, сривове или други проблеми, докато играеш OpenMyFront, моля, посети страницата ни за отстраняване на проблеми за помощ при диагностицирането и отстраняването на често срещани проблеми:",
     "icon_desc": "Примери за някои от иконките в играта, които ще срещнеш, и какво означават:",
     "icon_crown": "Корона - номер 1. Това е най-напредналият играч в класацията.",
     "icon_traitor": "Счупен щит - Предател. Този играч е атакувал съюзник.",
@@ -777,7 +777,7 @@
     "not_enough_money": "Няма достатъчно пари"
   },
   "win_modal": {
-    "support_openfront": "Подкрепи OpenFront!",
+    "support_openfront": "Подкрепи OpenMyFront!",
     "territory_pattern": "Закупете териториален шаблон, за да се освободите от рекламите!",
     "died": "Ти умря",
     "your_team": "Твоят отбор спечели!",
@@ -1089,15 +1089,15 @@
     "warning": "ВНИМАНИЕ",
     "dismiss": "Отхвърли",
     "go_to_item": "Отиди на предмет {num}",
-    "firefox_warning": "OpenFront.io не работи добре с [браузъри, базирани на Firefox](https://simple.wikipedia.org/wiki/Web_browsers_based_on_Firefox). Препоръчваме ти да ползваш [браузър, базиран на Chromium](https://en.wikipedia.org/wiki/Chromium_(web_browser)#Browsers_based_on_Chromium) за най-добро качество."
+    "firefox_warning": "OpenMyFront не работи добре с [браузъри, базирани на Firefox](https://simple.wikipedia.org/wiki/Web_browsers_based_on_Firefox). Препоръчваме ти да ползваш [браузър, базиран на Chromium](https://en.wikipedia.org/wiki/Chromium_(web_browser)#Browsers_based_on_Chromium) за най-добро качество."
   },
   "ios_banner": {
-    "text": "За пълен екран, добави OpenFront към началния си екран",
+    "text": "За пълен екран, добави OpenMyFront към началния си екран",
     "how": "Как",
     "later": "По-късно",
     "never": "Никога",
     "modal_title": "Пълен екран на iOS",
-    "modal_desc": "Браузърът ти не поддържа цял екран, но можеш да добавиш OpenFront към началния си екран за по-завладяващо изживяване:",
+    "modal_desc": "Браузърът ти не поддържа цял екран, но можеш да добавиш OpenMyFront към началния си екран за по-завладяващо изживяване:",
     "step_share": "Цъкни бутона „Споделяне“ в браузъра си",
     "step_scroll_and_tap": "Скролни надолу и цъкни",
     "step_add_to_home_label": "Добавяне към началния екран",

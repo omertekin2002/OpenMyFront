@@ -18,8 +18,8 @@
   "display": "standalone",
   "dir": "auto",
   "lang": "en",
-  "name": "OpenFront.io",
-  "short_name": "OpenFront",
+  "name": "OpenMyFront",
+  "short_name": "OpenMyFront",
   "start_url": "/",
   "id": "/"
 }

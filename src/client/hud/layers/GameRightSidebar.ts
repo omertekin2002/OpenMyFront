@@ -192,7 +192,6 @@ export class GameRightSidebar extends LitElement implements Controller {
       );
       if (!isConfirmed) return;
     }
-    await crazyGamesSDK.requestMidgameAd();
     await crazyGamesSDK.gameplayStop();
     // redirect to the home page
     window.location.href = "/";

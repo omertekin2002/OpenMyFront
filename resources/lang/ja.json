@@ -620,7 +620,7 @@
     "radial_title": "円形メニュー",
     "table_action": "操作",
     "table_key": "キー",
-    "troubleshooting_desc": "OpenFrontの再生中にパフォーマンスの問題、クラッシュ、その他の問題が発生した場合は、トラブルシューティングページをご覧ください。問題の診断と修正に役立ちます：",
+    "troubleshooting_desc": "OpenMyFrontの再生中にパフォーマンスの問題、クラッシュ、その他の問題が発生した場合は、トラブルシューティングページをご覧ください。問題の診断と修正に役立ちます：",
     "ui_attack_ratio": "攻撃比率 - 攻撃時に使用する兵力の割合で、スライダーで調整でき、攻撃側の兵力が防御側より多いほど損失が減り、少ないと攻撃側の損害が増えますが、この効果は攻撃と防御の比率が2対1を超えるとそれ以上強化されません。\n",
     "ui_control": "コントロールパネル",
     "ui_control_desc": "コントロールパネルには以下が含まれます :",
@@ -640,7 +640,7 @@
     "ui_wilderness": "荒野",
     "ui_your_team": "あなたのチーム :",
     "video_tutorial": "チュートリアル動画",
-    "video_tutorial_title": "OpenFront.io チュートリアル"
+    "video_tutorial_title": "OpenMyFront チュートリアル"
   },
   "host_modal": {
     "assigned_teams": "チーム編成",
@@ -692,14 +692,14 @@
     "got_it": "了解",
     "how": "詳細",
     "later": "あとで",
-    "modal_desc": "お使いのブラウザは全画面表示に対応していませんが、OpenFrontをホーム画面に追加することで、没入感のある体験をお楽しみいただけます：",
+    "modal_desc": "お使いのブラウザは全画面表示に対応していませんが、OpenMyFrontをホーム画面に追加することで、没入感のある体験をお楽しみいただけます：",
     "modal_title": "iOSでフルスクリーンにする",
     "never": "しない",
     "step_add_to_home_label": "ホーム画面に追加",
     "step_open": "ホーム画面から開く - アドレスバーなしでフルスクリーンを起動します",
     "step_scroll_and_tap": "下へスクロールしてタップ",
     "step_share": "ブラウザの共有ボタンをタップ",
-    "text": "フルスクリーンにするには、OpenFrontをホーム画面に追加してください"
+    "text": "フルスクリーンにするには、OpenMyFrontをホーム画面に追加してください"
   },
   "kick_reason": {
     "admin": "管理者によってキックされました。",
@@ -746,7 +746,7 @@
   "main": {
     "account": "アカウント",
     "clans": "クラン",
-    "copyright": "©️ OpenFront™ と貢献者",
+    "copyright": "©️ OpenMyFront と貢献者",
     "create": "ロビーを作成",
     "discord_avatar_alt": "Discordのプロフィールアバター",
     "game_info": "ゲームの情報",
@@ -765,7 +765,7 @@
     "solo": "ソロ",
     "store": "ストア",
     "terms_of_service": "利用規約",
-    "title": "OpenFront (ALPHA)",
+    "title": "OpenMyFront (ALPHA)",
     "troubleshooting": "トラブルシューティング",
     "user_avatar_alt": "{username}のアバター",
     "wiki": "Wiki"
@@ -904,7 +904,7 @@
   },
   "news_box": {
     "dismiss": "無視",
-    "firefox_warning": "OpenFront.ioは[Firefoxベースのブラウザ](https://simple.wikipedia.org/wiki/Web_browsers_based_on_Firefox)でうまく動作しません。良いパフォーマンスのために[Chromiumベースのブラウザ](https://en.wikipedia.org/wiki/Chromium_(web_browser)#Browsers_based_on_Chromium)を使用するのをおすすめします。",
+    "firefox_warning": "OpenMyFrontは[Firefoxベースのブラウザ](https://simple.wikipedia.org/wiki/Web_browsers_based_on_Firefox)でうまく動作しません。良いパフォーマンスのために[Chromiumベースのブラウザ](https://en.wikipedia.org/wiki/Chromium_(web_browser)#Browsers_based_on_Chromium)を使用するのをおすすめします。",
     "go_to_item": "{num}番目のアイテムに移動",
     "news": "お知らせ",
     "tournament": "トーナメント",
@@ -1190,7 +1190,7 @@
     "browser": "ブラウザ",
     "canvas_2d_no_gpu": "Canvas 2D (GPUなし)",
     "charging": "充電中",
-    "chromium_tip": "OpenFrontはChromiumベースのブラウザで最適に動作します。",
+    "chromium_tip": "OpenMyFrontはChromiumベースのブラウザで最適に動作します。",
     "copied_to_clipboard": "クリップボードに情報がコピーされました！ヘルプが必要な場合は、Discordで共有してください。",
     "device_pixel_ratio": "デバイスのピクセル比",
     "environment": "環境",
@@ -1376,7 +1376,7 @@
     "other_won": "{player}の勝利！",
     "requeue": "もう一度プレイする",
     "spectate": "観戦する",
-    "support_openfront": "OpenFront を支援！",
+    "support_openfront": "OpenMyFront を支援！",
     "territory_pattern": "広告を見て領土スキンを手に入れよう！",
     "wishlist": "Steamでウィッシュリストに追加して下さい！",
     "you_won": "勝利！",

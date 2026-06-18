@@ -640,7 +640,7 @@
     "ui_wilderness": "Vadvidék",
     "ui_your_team": "Saját csapat:",
     "video_tutorial": "Videó bemutató",
-    "video_tutorial_title": "OpenFront.io bemutató"
+    "video_tutorial_title": "OpenMyFront bemutató"
   },
   "host_modal": {
     "assigned_teams": "Hozzárendelt csapatok",
@@ -692,14 +692,14 @@
     "got_it": "Értem",
     "how": "Hogy",
     "later": "Később",
-    "modal_desc": "A böngésződ nem támogatja a teljes képernyős nézetet, de hozzáadhatod az OpenFrontot a kezdőképernyődhöz egy magával ragadóbb élményért:",
+    "modal_desc": "A böngésződ nem támogatja a teljes képernyős nézetet, de hozzáadhatod az OpenMyFrontot a kezdőképernyődhöz egy magával ragadóbb élményért:",
     "modal_title": "Teljes képernyő iOS-en",
     "never": "Soha",
     "step_add_to_home_label": "Hozzáadás a kezdőképernyőhöz",
     "step_open": "Megnyitás a kezdőképernyőről - teljes képernyős nézetet indít címsor nélkül",
     "step_scroll_and_tap": "Görgessen le, és kattintson",
     "step_share": "Koppintson a Megosztás gombra a böngészőjében",
-    "text": "Teljes képernyős nézethez add hozzá az OpenFront-ot a kezdőképernyődhöz"
+    "text": "Teljes képernyős nézethez add hozzá az OpenMyFront-ot a kezdőképernyődhöz"
   },
   "kick_reason": {
     "admin": "A lobbi adminisztrátora kirúgta",
@@ -746,7 +746,7 @@
   "main": {
     "account": "Fiók",
     "clans": "Klánok",
-    "copyright": "© OpenFront™ and Contributors",
+    "copyright": "© OpenMyFront and Contributors",
     "create": "Váróterem Létrehozása",
     "discord_avatar_alt": "Discord profilkép",
     "game_info": "Játék infó",
@@ -765,7 +765,7 @@
     "solo": "Egyéni",
     "store": "Bolt",
     "terms_of_service": "Felhasználási feltételek",
-    "title": "OpenFront (ALPHA)",
+    "title": "OpenMyFront (ALPHA)",
     "troubleshooting": "Hibaelhárítás",
     "user_avatar_alt": "{username} profilképe",
     "wiki": "Wiki"
@@ -904,7 +904,7 @@
   },
   "news_box": {
     "dismiss": "Elvetés",
-    "firefox_warning": "Az OpenFront.io nem működik jól [Firefox-alapú böngészőkkel](https://simple.wikipedia.org/wiki/Web_browsers_based_on_Firefox). A legjobb teljesítmény érdekében [Chromium-alapú böngésző](https://en.wikipedia.org/wiki/Chromium_(web_browser)#Browsers_based_on_Chromium) használatát javasoljuk.",
+    "firefox_warning": "Az OpenMyFront nem működik jól [Firefox-alapú böngészőkkel](https://simple.wikipedia.org/wiki/Web_browsers_based_on_Firefox). A legjobb teljesítmény érdekében [Chromium-alapú böngésző](https://en.wikipedia.org/wiki/Chromium_(web_browser)#Browsers_based_on_Chromium) használatát javasoljuk.",
     "go_to_item": "Ugrás a(z) {num} elemre",
     "news": "HÍREK",
     "tournament": "BAJNOKSÁG",
@@ -1190,7 +1190,7 @@
     "browser": "Böngésző",
     "canvas_2d_no_gpu": "Canvas 2D (GPU nélkül)",
     "charging": "Töltés",
-    "chromium_tip": "Az OpenFront Chromium alapú böngészőkön fut a legjobban.",
+    "chromium_tip": "Az OpenMyFront Chromium alapú böngészőkön fut a legjobban.",
     "copied_to_clipboard": "Információ másolva a vágólapra! Nyugodtan oszd meg Discordon, ha segítségre van szükséged.",
     "device_pixel_ratio": "Eszköz pixelaránya",
     "environment": "Környezet",
@@ -1376,7 +1376,7 @@
     "other_won": "{player} nyert!",
     "requeue": "Új játék",
     "spectate": "Megfigyel",
-    "support_openfront": "Támogasd az OpenFrontot!",
+    "support_openfront": "Támogasd az OpenMyFrontot!",
     "territory_pattern": "Vásárolj egy territoriális mintát, hogy reklámmentes legyél!",
     "wishlist": "Tedd a kívánságlistádra a Steam-en!",
     "you_won": "Nyertél!",
