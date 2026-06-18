@@ -74,7 +74,12 @@ export class MasterLobbyService {
       this.started = true;
       this.log.info("All workers ready, starting game scheduling");
       startPolling(async () => this.broadcastLobbies(), 500);
-      startPolling(async () => await this.maybeScheduleLobby(), 1000);
+      // Auto-scheduled public lobbies run full bot games even when empty,
+      // wasting CPU/RAM. Skip on self-host; players use single-player or
+      // private lobbies (create + share the join link) instead.
+      if (!ServerEnv.selfHost()) {
+        startPolling(async () => await this.maybeScheduleLobby(), 1000);
+      }
     }
   }
 

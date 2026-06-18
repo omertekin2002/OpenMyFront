@@ -21,6 +21,10 @@ services:
     envVars:
       - key: GAME_ENV
         value: dev          # bypasses Turnstile + private API backend
+      - key: SELF_HOST
+        value: "true"       # standalone host: skip central-API pollers
+                            # (matchmaking, cosmetics, archiving) + empty
+                            # public-lobby churn. See ServerEnv.selfHost().
       - key: NUM_WORKERS
         value: "2"          # game-server worker processes (per CPU/RAM budget)
       - key: TURNSTILE_SITE_KEY

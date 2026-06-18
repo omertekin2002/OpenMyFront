@@ -17,6 +17,10 @@ export async function archive(
   gameRecord: GameRecord,
   trustedCosmeticFlagUrls: Set<string> = new Set(),
 ) {
+  // No central backend to archive replays/analytics to on a self-host.
+  if (ServerEnv.selfHost()) {
+    return;
+  }
   try {
     if (gameRecord.info.config.gameType === GameType.Singleplayer) {
       stripUntrustedFlagUrls(gameRecord, trustedCosmeticFlagUrls);

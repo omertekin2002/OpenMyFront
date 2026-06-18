@@ -58,12 +58,15 @@ export async function startWorker() {
   // Initialize lobby service (handles WebSocket upgrade routing)
   const lobbyService = new WorkerLobbyService(server, wss, gm, log);
 
-  setTimeout(
-    () => {
-      startMatchmakingPolling(gm);
-    },
-    1000 + Math.random() * 2000,
-  );
+  // Ranked matchmaking check-in requires the central API backend; skip on self-host.
+  if (!ServerEnv.selfHost()) {
+    setTimeout(
+      () => {
+        startMatchmakingPolling(gm);
+      },
+      1000 + Math.random() * 2000,
+    );
+  }
 
   if (ServerEnv.otelEnabled()) {
     initWorkerMetrics(gm);
@@ -76,7 +79,11 @@ export async function startWorker() {
     ServerEnv.jwtIssuer() + "/reserved_clan_tags",
     log,
   );
-  privilegeRefresher.start();
+  // Cosmetics/privilege/profanity/clan-tag lists come from the central API
+  // backend; skip refreshing on self-host (the fail-open checker is used instead).
+  if (!ServerEnv.selfHost()) {
+    privilegeRefresher.start();
+  }
 
   // Middleware to handle /wX path prefix
   app.use((req, res, next) => {

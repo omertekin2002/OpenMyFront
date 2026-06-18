@@ -31,6 +31,13 @@ export class ServerEnv {
   static env(): GameEnv {
     return ServerEnv.gameEnv;
   }
+  // True when running as a standalone self-host with no central OpenFront
+  // backend (api.<domain>). Gates features that require that backend:
+  // ranked matchmaking, cosmetics/privileges, profanity & clan-tag lists,
+  // game-record archiving, and auto-scheduled public lobbies.
+  static selfHost(): boolean {
+    return process.env.SELF_HOST === "true";
+  }
   static gameEnvName(): string {
     switch (ServerEnv.gameEnv) {
       case GameEnv.Dev:
