@@ -1,0 +1,33 @@
+# Render Blueprint for self-hosting OpenFront.io
+# Docs: https://render.com/docs/blueprint-spec
+#
+# This deploys the whole stack (nginx + Node master/worker cluster) as ONE
+# Docker web service, built from the repo's existing Dockerfile.
+#
+# GAME_ENV=dev is intentional: it bypasses Cloudflare Turnstile and the
+# private OpenFront API backend, so anonymous play works with no external
+# services. (Account login will NOT work without that backend — that's
+# expected for a personal/self-host.)
+
+services:
+  - type: web
+    name: openmyfront
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: standard          # 2 GB RAM. "free"/"starter" (512 MB) work for light
+                            # testing — drop NUM_WORKERS to 1 if you use them.
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: GAME_ENV
+        value: dev          # bypasses Turnstile + private API backend
+      - key: NUM_WORKERS
+        value: "2"          # game-server worker processes (per CPU/RAM budget)
+      - key: TURNSTILE_SITE_KEY
+        value: 1x00000000000000000000AA   # Cloudflare test key (always passes)
+      - key: DOMAIN
+        value: localhost    # JWT audience; keeps issuer internal. Fine for anon play.
+      - key: GIT_COMMIT
+        value: render
+      - key: PORT
+        value: "80"         # nginx listens on 80; tell Render to route there
