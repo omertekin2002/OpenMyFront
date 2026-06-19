@@ -1,4 +1,3 @@
-import version from "resources/version.txt?raw";
 import { ClientEnv } from "src/client/ClientEnv";
 import { UserMeResponse } from "../core/ApiSchemas";
 import { assetUrl } from "../core/AssetUrls";
@@ -189,7 +188,6 @@ class Client {
     // the user joins a lobby.
     this.turnstileTokenPromise = getTurnstileToken();
 
-    // Wait for components to render before setting version
     await customElements.whenDefined("mobile-nav-bar");
     await customElements.whenDefined("desktop-nav-bar");
 
@@ -199,20 +197,6 @@ class Client {
     );
     document.fonts.add(openFrontFont);
     openFrontFont.load().catch(() => {});
-
-    const versionElements = document.querySelectorAll(
-      "#game-version, .game-version-display",
-    );
-    if (versionElements.length === 0) {
-      console.warn("Game version element not found");
-    } else {
-      const trimmed = version.trim();
-      const displayVersion = trimmed.startsWith("v") ? trimmed : `v${trimmed}`;
-      versionElements.forEach((el) => {
-        (el as HTMLElement).style.fontFamily = '"OpenFront", Inter, sans-serif';
-        el.textContent = displayVersion;
-      });
-    }
 
     const langSelector = document.querySelector(
       "lang-selector",

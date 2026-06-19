@@ -60,10 +60,6 @@ export class DesktopNavBar extends LitElement {
               alt="OpenMyFront"
             />
           </div>
-          <div
-            id="game-version"
-            class="l-header__highlightText text-center"
-          ></div>
         </div>
         <button
           class="nav-menu-item ${currentPage === "page-play"

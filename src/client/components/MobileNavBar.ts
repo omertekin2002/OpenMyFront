@@ -81,10 +81,6 @@ export class MobileNavBar extends LitElement {
               alt="OpenMyFront"
               class="w-auto h-auto max-w-[220px] max-h-[4.5rem]"
             />
-            <div
-              id="game-version"
-              class="l-header__highlightText text-center"
-            ></div>
           </div>
         </div>
         <!-- Mobile Navigation Menu Items -->
