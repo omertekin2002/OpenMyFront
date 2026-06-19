@@ -88,7 +88,8 @@ export class TerritoryPatternsModal extends BaseModal {
 
   /** Combined patterns + skins grid. To the user they're the same: "skins". */
   private renderSkinGrid(): TemplateResult {
-    const items = resolveCosmetics(
+    const DEFAULT_LIMIT = 120;
+    const all = resolveCosmetics(
       this.cosmetics,
       this.userMeResponse,
       null,
@@ -100,6 +101,10 @@ export class TerritoryPatternsModal extends BaseModal {
           ? !this.search
           : this.includedInSearch(r.cosmetic.name)),
     );
+    // The full catalog is large; show a capped set by default and let the
+    // search box surface the rest.
+    const capped = !this.search && all.length > DEFAULT_LIMIT;
+    const items = capped ? all.slice(0, DEFAULT_LIMIT) : all;
 
     return html`
       <div class="flex flex-col">
@@ -130,6 +135,11 @@ export class TerritoryPatternsModal extends BaseModal {
             `;
           })}
         </div>
+        ${capped
+          ? html`<div class="text-center text-white/40 text-sm pb-6">
+              ${translateText("territory_patterns.more_hint")}
+            </div>`
+          : ""}
       </div>
     `;
   }

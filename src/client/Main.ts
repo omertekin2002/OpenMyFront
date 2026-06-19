@@ -34,7 +34,6 @@ import { LangSelector } from "./LangSelector";
 import { initLayout } from "./Layout";
 import { modalRouter } from "./ModalRouter";
 import { initNavigation } from "./Navigation";
-import "./NewsModal";
 import "./PatternInput";
 import "./SinglePlayerModal";
 import "./TerritoryPatternsModal";
@@ -169,7 +168,6 @@ class Client {
       pageId: "page-settings",
     });
     modalRouter.register("help", { tag: "help-modal", pageId: "page-help" });
-    modalRouter.register("news", { tag: "news-modal", pageId: "page-news" });
     modalRouter.register("language", {
       tag: "language-modal",
       pageId: "page-language",
@@ -639,7 +637,6 @@ class Client {
         "troubleshooting-modal",
         "territory-patterns-modal",
         "language-modal",
-        "news-modal",
         "flag-input-modal",
         "lang-selector",
       ].forEach((tag) => {

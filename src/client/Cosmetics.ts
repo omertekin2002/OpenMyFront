@@ -20,7 +20,6 @@ import { UserSettings } from "../core/game/UserSettings";
 import {
   changeSubscriptionTier,
   createCheckoutSession,
-  getApiBase,
   getUserMe,
   invalidateUserMe,
   purchaseWithCurrency,
@@ -188,7 +187,9 @@ export async function fetchCosmetics(): Promise<Cosmetics | null> {
   }
   __cosmetics = (async () => {
     try {
-      const response = await fetch(`${getApiBase()}/cosmetics.json`);
+      // Self-host: bundled cosmetics catalog served as a static asset instead
+      // of the (removed) central API.
+      const response = await fetch(assetUrl("cosmetics/cosmetics.json"));
       if (!response.ok) {
         console.error(`HTTP error! status: ${response.status}`);
         return null;
@@ -279,44 +280,8 @@ export function patternRelationship(
   userMeResponse: UserMeResponse | false,
   affiliateCode: string | null,
 ): "owned" | "purchasable" | "blocked" {
-  if (colorPalette === null) {
-    // For backwards compatibility only show non-colored patterns if they are owned.
-    const flares =
-      userMeResponse === false ? [] : (userMeResponse.player.flares ?? []);
-    if (
-      flares.includes("pattern:*") ||
-      flares.includes(`pattern:${pattern.name}`)
-    ) {
-      return "owned";
-    }
-    return "blocked";
-  }
-
-  if (colorPalette.isArchived) {
-    // Check ownership first — if owned, show it even if archived.
-    const flares =
-      userMeResponse === false ? [] : (userMeResponse.player.flares ?? []);
-    if (
-      flares.includes("pattern:*") ||
-      flares.includes(`pattern:${pattern.name}:${colorPalette.name}`)
-    ) {
-      return "owned";
-    }
-    return "blocked";
-  }
-
-  return cosmeticRelationship(
-    {
-      wildcardFlare: "pattern:*",
-      requiredFlare: `pattern:${pattern.name}:${colorPalette.name}`,
-      product: pattern.product,
-      priceSoft: pattern.priceSoft,
-      priceHard: pattern.priceHard,
-      affiliateCode,
-      itemAffiliateCode: pattern.affiliateCode ?? null,
-    },
-    userMeResponse,
-  );
+  // Self-host: every cosmetic is free/owned (no central entitlement API).
+  return "owned";
 }
 
 export function flagRelationship(
@@ -324,18 +289,8 @@ export function flagRelationship(
   userMeResponse: UserMeResponse | false,
   affiliateCode: string | null,
 ): "owned" | "purchasable" | "blocked" {
-  return cosmeticRelationship(
-    {
-      wildcardFlare: "flag:*",
-      requiredFlare: `flag:${flag.name}`,
-      product: flag.product,
-      priceSoft: flag.priceSoft,
-      priceHard: flag.priceHard,
-      affiliateCode,
-      itemAffiliateCode: flag.affiliateCode ?? null,
-    },
-    userMeResponse,
-  );
+  // Self-host: every cosmetic is free/owned (no central entitlement API).
+  return "owned";
 }
 
 export function skinRelationship(
@@ -343,18 +298,8 @@ export function skinRelationship(
   userMeResponse: UserMeResponse | false,
   affiliateCode: string | null,
 ): "owned" | "purchasable" | "blocked" {
-  return cosmeticRelationship(
-    {
-      wildcardFlare: "skin:*",
-      requiredFlare: `skin:${skin.name}`,
-      product: skin.product,
-      priceSoft: skin.priceSoft,
-      priceHard: skin.priceHard,
-      affiliateCode,
-      itemAffiliateCode: skin.affiliateCode ?? null,
-    },
-    userMeResponse,
-  );
+  // Self-host: every cosmetic is free/owned (no central entitlement API).
+  return "owned";
 }
 
 export type ResolvedCosmetic = {

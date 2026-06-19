@@ -1252,6 +1252,7 @@
     "search": "Search...",
     "select_skin": "Select Skin",
     "selected": "selected",
+    "more_hint": "Search to see more skins",
     "title": "Skins"
   },
   "token_login_modal": {
