@@ -1,17 +1,25 @@
-import { EventBus } from "../../core/EventBus";
-import { UserSettings } from "../../core/game/UserSettings";
+import { EventBus } from "@openfront/shared/EventBus";
 import { Controller } from "../Controller";
+import { AmbienceController } from "../controllers/AmbienceController";
 import { AttackingTroopsController } from "../controllers/AttackingTroopsController";
 import { BuildPreviewController } from "../controllers/BuildPreviewController";
 import { HoverHighlightController } from "../controllers/HoverHighlightController";
+import { LiveStatsController } from "../controllers/LiveStatsController";
+import { MapLayerController } from "../controllers/MapLayerController";
 import { SoundEffectController } from "../controllers/SoundEffectController";
 import { StructureHighlightController } from "../controllers/StructureHighlightController";
 import { ViewModeController } from "../controllers/ViewModeController";
 import { WarshipSelectionController } from "../controllers/WarshipSelectionController";
 import { GameStartingModal } from "../GameStartingModal";
+import { migrateLegacyGraphicsSettings } from "../GraphicsPresets";
 import { MapRenderer } from "../render/gl";
 import { TransformHandler } from "../TransformHandler";
 import { UIState } from "../UIState";
+// The homepage loads it on demand, but the in-game instance (#game-settings)
+// is set up below, so it has to be defined by the time a game renders.
+import "../UserSettingModal";
+import type { UserSettingModal } from "../UserSettingModal";
+import { UserSettings } from "../UserSettings";
 import { GameView } from "../view";
 import { FrameProfiler } from "./FrameProfiler";
 import { ActionableEvents } from "./layers/ActionableEvents";
@@ -25,19 +33,18 @@ import { EmojiTable } from "./layers/EmojiTable";
 import { EventsDisplay } from "./layers/EventsDisplay";
 import { GameLeftSidebar } from "./layers/GameLeftSidebar";
 import { GameRightSidebar } from "./layers/GameRightSidebar";
-import { GraphicsSettingsModal } from "./layers/GraphicsSettingsModal";
 import { HeadsUpMessage } from "./layers/HeadsUpMessage";
 import { ImmunityTimer } from "./layers/ImmunityTimer";
-import { Leaderboard } from "./layers/Leaderboard";
 import { MainRadialMenu } from "./layers/MainRadialMenu";
 import { MultiTabModal } from "./layers/MultiTabModal";
+import { NewLobbyPrompt } from "./layers/NewLobbyPrompt";
 import { PerformanceOverlay } from "./layers/PerformanceOverlay";
 import { PlayerInfoOverlay } from "./layers/PlayerInfoOverlay";
 import { PlayerPanel } from "./layers/PlayerPanel";
 import { ReplayPanel } from "./layers/ReplayPanel";
 import { SettingsModal } from "./layers/SettingsModal";
 import { SpawnTimer } from "./layers/SpawnTimer";
-import { TeamStats } from "./layers/TeamStats";
+import { TutorialPanel } from "./layers/TutorialPanel";
 import { UnitDisplay } from "./layers/UnitDisplay";
 import { WinModal } from "./layers/WinModal";
 import { loadAllSprites } from "./SpriteLoader";
@@ -48,6 +55,7 @@ export function createRenderer(
   eventBus: EventBus,
   playerRole: string | null,
   view: MapRenderer,
+  mapLayerController?: MapLayerController,
 ): GameRenderer {
   const transformHandler = new TransformHandler(game, eventBus, inputEl);
   const userSettings = new UserSettings();
@@ -56,6 +64,7 @@ export function createRenderer(
     attackRatio: 20,
     ghostStructure: null,
     rocketDirectionUp: true,
+    upgradeMultiplier: 1,
   };
 
   //hide when the game renders
@@ -82,13 +91,6 @@ export function createRenderer(
   buildMenu.uiState = uiState;
   buildMenu.transformHandler = transformHandler;
 
-  const leaderboard = document.querySelector("leader-board") as Leaderboard;
-  if (!leaderboard || !(leaderboard instanceof Leaderboard)) {
-    console.error("LeaderBoard element not found in the DOM");
-  }
-  leaderboard.eventBus = eventBus;
-  leaderboard.game = game;
-
   const gameLeftSidebar = document.querySelector(
     "game-left-sidebar",
   ) as GameLeftSidebar;
@@ -97,13 +99,6 @@ export function createRenderer(
   }
   gameLeftSidebar.game = game;
   gameLeftSidebar.eventBus = eventBus;
-
-  const teamStats = document.querySelector("team-stats") as TeamStats;
-  if (!teamStats || !(teamStats instanceof TeamStats)) {
-    console.error("TeamStats element not found in the DOM");
-  }
-  teamStats.eventBus = eventBus;
-  teamStats.game = game;
 
   const controlPanel = document.querySelector("control-panel") as ControlPanel;
   if (!(controlPanel instanceof ControlPanel)) {
@@ -167,6 +162,15 @@ export function createRenderer(
   winModal.eventBus = eventBus;
   winModal.game = game;
 
+  const newLobbyPrompt = document.querySelector(
+    "new-lobby-prompt",
+  ) as NewLobbyPrompt;
+  if (!(newLobbyPrompt instanceof NewLobbyPrompt)) {
+    console.error("new lobby prompt not found");
+  }
+  newLobbyPrompt.eventBus = eventBus;
+  newLobbyPrompt.game = game;
+
   const replayPanel = document.querySelector("replay-panel") as ReplayPanel;
   if (!(replayPanel instanceof ReplayPanel)) {
     console.error("replay panel not found");
@@ -189,17 +193,38 @@ export function createRenderer(
   if (!(settingsModal instanceof SettingsModal)) {
     console.error("settings modal not found");
   }
-  settingsModal.userSettings = userSettings;
   settingsModal.eventBus = eventBus;
+  settingsModal.gameConfig = game.config().gameConfig();
+  settingsModal.mapNationCount = game.mapNationCount();
 
-  const graphicsSettingsModal = document.querySelector(
-    "graphics-settings-modal",
-  ) as GraphicsSettingsModal;
-  if (!(graphicsSettingsModal instanceof GraphicsSettingsModal)) {
-    console.error("graphics settings modal not found");
+  // The in-game settings instance needs the bus so the Audio sliders reach
+  // SoundManager, which caches its volumes at construction, and UIState so the
+  // attack ratio slider shows the session value the HUD slider may have set.
+  // It also owns the advanced graphics options now, so it takes this game's
+  // map layers and the two renderer callbacks they apply through — the rest of
+  // those options reach the renderer through the settings-changed event
+  // ClientGameRunner listens for.
+  const gameSettingsModal = document.getElementById(
+    "game-settings",
+  ) as UserSettingModal | null;
+  if (gameSettingsModal === null) {
+    console.warn("In-game settings modal (#game-settings) not found");
+  } else {
+    gameSettingsModal.uiState = uiState;
+    gameSettingsModal.mapLayers = game.layers();
+    gameSettingsModal.onLayerVisibilityChange = (layerId, visible) => {
+      view.setLayerVisible(layerId, visible);
+    };
+    gameSettingsModal.onLayerAlphaChange = (layerId, alpha) => {
+      view.setLayerAlpha(layerId, alpha);
+    };
   }
-  graphicsSettingsModal.userSettings = userSettings;
-  graphicsSettingsModal.eventBus = eventBus;
+
+  // Ran from the graphics modal's init() before that modal was folded into the
+  // settings modal's Graphics tab. Still game start, so a player who tuned
+  // their graphics before presets existed keeps that snapshot whether or not
+  // they ever open settings.
+  migrateLegacyGraphicsSettings(userSettings);
 
   const unitDisplay = document.querySelector("unit-display") as UnitDisplay;
   if (!(unitDisplay instanceof UnitDisplay)) {
@@ -225,6 +250,7 @@ export function createRenderer(
     console.error("chat modal not found");
   }
   chatModal.g = game;
+  chatModal.transformHandler = transformHandler;
   chatModal.initEventBus(eventBus);
 
   const multiTabModal = document.querySelector(
@@ -275,6 +301,17 @@ export function createRenderer(
   immunityTimer.game = game;
   immunityTimer.eventBus = eventBus;
 
+  const tutorialPanel = document.querySelector(
+    "tutorial-panel",
+  ) as TutorialPanel;
+  if (!(tutorialPanel instanceof TutorialPanel)) {
+    console.error("tutorial panel not found");
+  }
+  tutorialPanel.game = game;
+  tutorialPanel.eventBus = eventBus;
+  tutorialPanel.userSettings = userSettings;
+  tutorialPanel.uiState = uiState;
+
   const layers: Controller[] = [
     new WarshipSelectionController(game, eventBus, transformHandler, view),
     new BuildPreviewController(
@@ -286,10 +323,13 @@ export function createRenderer(
       userSettings,
     ),
     new HoverHighlightController(game, eventBus, transformHandler, view),
+    new LiveStatsController(game, eventBus),
     new StructureHighlightController(eventBus, view),
     new ViewModeController(eventBus, view),
     new AttackingTroopsController(game, eventBus, userSettings, view),
     new SoundEffectController(game, eventBus),
+    new AmbienceController(game, eventBus, transformHandler),
+    ...(mapLayerController ? [mapLayerController] : []),
     eventsDisplay,
     actionableEvents,
     attacksDisplay,
@@ -306,20 +346,19 @@ export function createRenderer(
     ),
     spawnTimer,
     immunityTimer,
-    leaderboard,
     gameLeftSidebar,
     unitDisplay,
     gameRightSidebar,
     controlPanel,
     playerInfo,
     winModal,
+    newLobbyPrompt,
     replayPanel,
     settingsModal,
-    graphicsSettingsModal,
-    teamStats,
     playerPanel,
     headsUpMessage,
     multiTabModal,
+    tutorialPanel,
     alertFrame,
     performanceOverlay,
   ];
@@ -344,7 +383,7 @@ export class GameRenderer {
 
   initialize() {
     loadAllSprites().catch((err) =>
-      console.error("Failed to preload sprites:", err),
+      console.warn("Failed to preload sprites:", err),
     );
 
     this.layers.forEach((l) => l.init?.());

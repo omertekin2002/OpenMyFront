@@ -1,6 +1,11 @@
-import { EventBus, GameEvent } from "../core/EventBus";
-import { Cell } from "../core/game/Game";
-import { CenterCameraEvent, DragEvent, ZoomEvent } from "./InputHandler";
+import { Cell } from "@openfront/engine-api/game/GameTypes";
+import { EventBus, GameEvent } from "@openfront/shared/EventBus";
+import {
+  CenterCameraEvent,
+  DragEvent,
+  ZOOM_DELTA_DIVISOR,
+  ZoomEvent,
+} from "./InputHandler";
 import { GameView, PlayerView, UnitView } from "./view";
 
 export class GoToPlayerEvent implements GameEvent {
@@ -236,8 +241,9 @@ export class TransformHandler {
   private goTo() {
     const { screenX, screenY } = this.screenCenter();
 
-    if (this.target === null) throw new Error("null target");
-
+    if (this.target === null) {
+      throw new Error("null target");
+    }
     const positionClose =
       Math.abs(this.target.x - screenX) + Math.abs(this.target.y - screenY) < 2;
     const scaleClose =
@@ -295,7 +301,7 @@ export class TransformHandler {
   onZoom(event: ZoomEvent) {
     this.clearTarget();
     const oldScale = this.scale;
-    const zoomFactor = 1 + event.delta / 600;
+    const zoomFactor = 1 + event.delta / ZOOM_DELTA_DIVISOR;
     this.scale /= zoomFactor;
 
     // Clamp the scale to prevent extreme zooming

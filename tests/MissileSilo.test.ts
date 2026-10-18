@@ -1,15 +1,15 @@
-import { NukeExecution } from "../src/core/execution/NukeExecution";
-import { SpawnExecution } from "../src/core/execution/SpawnExecution";
-import { UpgradeStructureExecution } from "../src/core/execution/UpgradeStructureExecution";
+import { TileRef } from "@openfront/engine-api/game/GameMap";
 import {
-  Game,
-  Player,
   PlayerInfo,
   PlayerType,
   UnitType,
-} from "../src/core/game/Game";
-import { TileRef } from "../src/core/game/GameMap";
-import { GameID } from "../src/core/Schemas";
+} from "@openfront/engine-api/game/GameTypes";
+import { GameID } from "@openfront/engine-api/Schemas";
+import { MirvExecution } from "@openfront/engine/execution/MIRVExecution";
+import { NukeExecution } from "@openfront/engine/execution/NukeExecution";
+import { SpawnExecution } from "@openfront/engine/execution/SpawnExecution";
+import { UpgradeStructureExecution } from "@openfront/engine/execution/UpgradeStructureExecution";
+import { Game, Player } from "@openfront/engine/game/Game";
 import { setup } from "./util/Setup";
 import { constructionExecution, executeTicks } from "./util/utils";
 
@@ -90,6 +90,32 @@ describe("MissileSilo", () => {
     executeTicks(game, 2);
 
     expect(attacker.units(UnitType.MissileSilo)[0].isInCooldown()).toBeFalsy();
+  });
+
+  test("missilesilo should cooldown after launching MIRV", async () => {
+    // MIRVs can only target player-owned tiles
+    const target_info = new PlayerInfo(
+      "target_id",
+      PlayerType.Human,
+      null,
+      "target_id",
+    );
+    game.addPlayer(target_info);
+    const target = game.player("target_id");
+    target.conquer(game.ref(50, 50));
+
+    expect(attacker.units(UnitType.MissileSilo)[0].isInCooldown()).toBeFalsy();
+
+    game.addExecution(new MirvExecution(attacker, game.ref(50, 50)));
+    game.executeNextTick();
+    game.executeNextTick();
+
+    expect(attacker.units(UnitType.MIRV)).toHaveLength(1);
+    expect(attacker.units(UnitType.MissileSilo)[0].isInCooldown()).toBeTruthy();
+
+    // the silo is on cooldown, so it cannot launch another nuke
+    attackerBuildsNuke(null, game.ref(7, 7));
+    expect(attacker.units(UnitType.AtomBomb)).toHaveLength(0);
   });
 
   test("missilesilo should have increased level after upgrade", async () => {

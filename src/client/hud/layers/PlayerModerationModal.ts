@@ -1,10 +1,11 @@
+import { PlayerType } from "@openfront/engine-api/game/GameTypes";
+import { assetUrl } from "@openfront/shared/AssetUrls";
+import { EventBus } from "@openfront/shared/EventBus";
 import { html, LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";
-import { assetUrl } from "../../../core/AssetUrls";
-import { EventBus } from "../../../core/EventBus";
-import { PlayerType } from "../../../core/game/Game";
 import { actionButton } from "../../components/ui/ActionButton";
-import { SendKickPlayerIntentEvent } from "../../Transport";
+import { showInGameConfirm } from "../../InGameModal";
+import { SendKickPlayerIntentEvent } from "../../LobbyEvents";
 import { translateText } from "../../Utils";
 import { PlayerView } from "../../view";
 const kickIcon = assetUrl("images/ExitIconWhite.svg");
@@ -52,7 +53,7 @@ export class PlayerModerationModal extends LitElement {
     );
   }
 
-  private handleKickClick = (e: MouseEvent) => {
+  private handleKickClick = async (e: MouseEvent) => {
     e.stopPropagation();
 
     const my = this.myPlayer;
@@ -66,7 +67,7 @@ export class PlayerModerationModal extends LitElement {
     const targetClientID = other.clientID();
     if (!targetClientID || targetClientID.length === 0) return;
 
-    const confirmed = confirm(
+    const confirmed = await showInGameConfirm(
       translateText("player_panel.kick_confirm", { name: other.displayName() }),
     );
     if (!confirmed) return;

@@ -62,12 +62,37 @@ describe("GraphicsOverridesSchema", () => {
     }
   });
 
+  test("accepts partial altView overrides", () => {
+    expect(GraphicsOverridesSchema.safeParse({ altView: {} }).success).toBe(
+      true,
+    );
+    expect(
+      GraphicsOverridesSchema.safeParse({ altView: { fillAlpha: 0.2 } })
+        .success,
+    ).toBe(true);
+    expect(
+      GraphicsOverridesSchema.safeParse({ altView: { fillAlpha: "faint" } })
+        .success,
+    ).toBe(false);
+  });
+
   test("accepts partial railroad overrides", () => {
     const cases = [
       { railroad: {} },
       { railroad: { railMinZoom: 2 } },
       { railroad: { railThickness: 1.5 } },
       { railroad: { railMinZoom: 0, railThickness: 3 } },
+    ];
+    for (const c of cases) {
+      expect(GraphicsOverridesSchema.safeParse(c).success).toBe(true);
+    }
+  });
+
+  test("accepts partial smallPlayerGlow overrides", () => {
+    const cases = [
+      { smallPlayerGlow: {} },
+      { smallPlayerGlow: { strength: 0 } },
+      { smallPlayerGlow: { strength: 0.5 } },
     ];
     for (const c of cases) {
       expect(GraphicsOverridesSchema.safeParse(c).success).toBe(true);
@@ -126,6 +151,11 @@ describe("GraphicsOverridesSchema", () => {
     expect(
       GraphicsOverridesSchema.safeParse({
         railroad: { railThickness: "wide" },
+      }).success,
+    ).toBe(false);
+    expect(
+      GraphicsOverridesSchema.safeParse({
+        smallPlayerGlow: { strength: "strong" },
       }).success,
     ).toBe(false);
     expect(
@@ -342,6 +372,14 @@ describe("applyGraphicsOverrides", () => {
     ).toBe(0);
   });
 
+  test("applies altView.fillAlpha override (including 0)", () => {
+    expect(gen({ altView: { fillAlpha: 0.4 } }).altView.fillAlpha).toBe(0.4);
+    expect(gen({ altView: { fillAlpha: 0 } }).altView.fillAlpha).toBe(0);
+    expect(gen({}).altView.fillAlpha).toBe(
+      createRenderSettings().altView.fillAlpha,
+    );
+  });
+
   test("mapOverlay override leaves other mapOverlay fields at defaults", () => {
     const defaults = createRenderSettings().mapOverlay;
     const mo = gen({ mapOverlay: { territorySaturation: 0.2 } }).mapOverlay;
@@ -372,6 +410,28 @@ describe("applyGraphicsOverrides", () => {
     expect(r.railAlpha).toBe(defaults.railAlpha);
     const z = gen({ railroad: { railMinZoom: 1 } }).railroad;
     expect(z.railThickness).toBe(defaults.railThickness);
+  });
+
+  test("applies smallPlayerGlow strength override (including 0 = off)", () => {
+    expect(
+      gen({ smallPlayerGlow: { strength: 0.5 } }).smallPlayerGlow.strength,
+    ).toBe(0.5);
+    expect(
+      gen({ smallPlayerGlow: { strength: 0 } }).smallPlayerGlow.strength,
+    ).toBe(0);
+  });
+
+  test("smallPlayerGlow strength absent → keeps default of 0.35", () => {
+    expect(gen({}).smallPlayerGlow.strength).toBe(0.35);
+    expect(gen({ smallPlayerGlow: {} }).smallPlayerGlow.strength).toBe(0.35);
+  });
+
+  test("smallPlayerGlow override leaves other glow fields at defaults", () => {
+    const defaults = createRenderSettings().smallPlayerGlow;
+    const g = gen({ smallPlayerGlow: { strength: 0.25 } }).smallPlayerGlow;
+    expect(g.alpha).toBe(defaults.alpha);
+    expect(g.pulseSpeed).toBe(defaults.pulseSpeed);
+    expect(g.color).toEqual(defaults.color);
   });
 
   test("ambient < 1 sets ambient and enables the lighting pass", () => {

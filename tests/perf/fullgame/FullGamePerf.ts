@@ -1,7 +1,7 @@
 /**
- * Full-game performance harness for src/core.
+ * Full-game performance harness for the engine.
  *
- * Runs the real simulation pipeline (GameRunner + Executor + real Config,
+ * Runs the real simulation pipeline (GameRunner + Executor + real EngineConfig,
  * nations from the map manifest, bots) headlessly on a production map for a
  * configurable number of ticks, then reports:
  *
@@ -10,6 +10,10 @@
  *   3. Top functions by self time from the V8 sampling profiler, plus a
  *      .cpuprofile loadable in Chrome DevTools (Performance tab) as a
  *      flame graph.
+ *   4. GC churn: GC pause counts/time by kind, allocation rate per
+ *      time window across the game, and top allocating functions from the
+ *      V8 sampling heap profiler (plus a .heapprofile loadable in Chrome
+ *      DevTools > Memory > Allocation sampling).
  *
  * The run is deterministic for a given --seed/--map/--bots, and the final
  * game-state hash is printed so optimizations can be verified to not change
@@ -17,29 +21,52 @@
  *
  * Usage:
  *   npm run perf:game -- [--map world] [--ticks 1800] [--bots 400]
- *                        [--seed perf-default] [--top 30]
+ *                        [--seed perf-default] [--top 30] [--window 1000]
  *                        [--no-cpu-profile] [--no-exec-profile]
+ *                        [--no-gc-profile] [--no-alloc-profile]
+ *                        [--footprint] [--snapshot-at 0,2000,12000]
+ *
+ * --footprint records the live heap (used heap after a forced full GC) at
+ * every --window boundary; it requires NODE_OPTIONS=--expose-gc.
+ * --snapshot-at writes .heapsnapshot files at the given game-phase ticks
+ * (0 = right after the spawn phase) for offline attribution; summarize them
+ * with tests/perf/fullgame/HeapSnapshotSummary.ts.
  */
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import { Config } from "../../../src/core/configuration/Config";
-import { Executor } from "../../../src/core/execution/ExecutionManager";
 import {
   Difficulty,
   GameMapSize,
   GameMapType,
   GameMode,
   GameType,
-} from "../../../src/core/game/Game";
-import { createGame } from "../../../src/core/game/GameImpl";
-import { GameUpdateType, HashUpdate } from "../../../src/core/game/GameUpdates";
-import { createNationsForGame } from "../../../src/core/game/NationCreation";
-import { loadTerrainMap } from "../../../src/core/game/TerrainMapLoader";
-import { GameRunner } from "../../../src/core/GameRunner";
-import { PseudoRandom } from "../../../src/core/PseudoRandom";
-import { GameConfig, GameStartInfo } from "../../../src/core/Schemas";
-import { simpleHash } from "../../../src/core/Util";
+} from "@openfront/engine-api/game/GameTypes";
+import {
+  GameUpdateType,
+  HashUpdate,
+} from "@openfront/engine-api/game/GameUpdates";
+import { GameConfig, GameStartInfo } from "@openfront/engine-api/Schemas";
+import { loadTerrainMap } from "@openfront/engine-lib/game/TerrainMapLoader";
+import { PseudoRandom } from "@openfront/engine-lib/PseudoRandom";
+import { simpleHash } from "@openfront/engine-lib/Util";
+import { EngineConfig } from "@openfront/engine/configuration/EngineConfig";
+import { Executor } from "@openfront/engine/execution/ExecutionManager";
+import { createGame } from "@openfront/engine/game/GameImpl";
+import { createNationsForGame } from "@openfront/engine/game/NationCreation";
+import { GameRunner } from "@openfront/engine/GameRunner";
+import { loadMapFiles } from "@openfront/shared/GameMapLoader";
+import fs from "fs";
+import v8 from "node:v8";
+import path from "path";
+import { fileURLToPath } from "url";
+import {
+  AllocationSampler,
+  FootprintCheckpoint,
+  GcTracker,
+  HeapSampler,
+  HeapWindow,
+  summarizeAllocationProfile,
+  summarizeGcEvents,
+  takeFootprintCheckpoint,
+} from "./GcProfiler";
 import { NodeGameMapLoader } from "./NodeGameMapLoader";
 import {
   CpuProfiler,
@@ -63,8 +90,14 @@ interface Options {
   nations: "default" | "disabled" | number;
   seed: string;
   top: number;
+  window: number;
   cpuProfile: boolean;
   execProfile: boolean;
+  gcProfile: boolean;
+  allocProfile: boolean;
+  footprint: boolean;
+  snapshotAt: number[];
+  waterNukes: boolean;
 }
 
 function resolveMap(name: string): GameMapType {
@@ -88,8 +121,14 @@ function parseArgs(argv: string[]): Options {
     nations: "default",
     seed: "perf-default",
     top: 30,
+    window: 1000,
     cpuProfile: true,
     execProfile: true,
+    gcProfile: true,
+    allocProfile: true,
+    footprint: false,
+    snapshotAt: [],
+    waterNukes: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -120,11 +159,31 @@ function parseArgs(argv: string[]): Options {
       case "--top":
         opts.top = parseInt(next(), 10);
         break;
+      case "--window":
+        opts.window = parseInt(next(), 10);
+        break;
       case "--no-cpu-profile":
         opts.cpuProfile = false;
         break;
       case "--no-exec-profile":
         opts.execProfile = false;
+        break;
+      case "--no-gc-profile":
+        opts.gcProfile = false;
+        break;
+      case "--no-alloc-profile":
+        opts.allocProfile = false;
+        break;
+      case "--footprint":
+        opts.footprint = true;
+        break;
+      case "--snapshot-at":
+        opts.snapshotAt = next()
+          .split(",")
+          .map((v) => parseInt(v, 10));
+        break;
+      case "--water-nukes":
+        opts.waterNukes = true;
         break;
       default:
         throw new Error(`unknown argument: ${arg}`);
@@ -137,6 +196,11 @@ function parseArgs(argv: string[]): Options {
 
 function fmtMs(ms: number): string {
   return ms >= 100 ? ms.toFixed(0) : ms >= 10 ? ms.toFixed(1) : ms.toFixed(2);
+}
+
+function fmtMB(bytes: number): string {
+  const mb = bytes / 1024 / 1024;
+  return mb >= 100 ? mb.toFixed(0) : mb >= 10 ? mb.toFixed(1) : mb.toFixed(2);
 }
 
 function table(headers: string[], rows: string[][]): string {
@@ -170,6 +234,7 @@ async function main(): Promise<void> {
     infiniteTroops: false,
     instantBuild: false,
     randomSpawn: false,
+    waterNukes: opts.waterNukes ? true : undefined,
   };
   const gameStart: GameStartInfo = {
     gameID: opts.seed,
@@ -186,14 +251,12 @@ async function main(): Promise<void> {
   // Mirrors createGameRunner(), but assembled by hand so the execution
   // profiler can be attached before GameRunner.init() adds the initial
   // executions (nations, bots, spawn timer, win check).
-  const config = new Config(gameConfig, null, false);
+  const config = new EngineConfig(gameConfig, false);
   const mapLoader = new NodeGameMapLoader(
     path.join(PROJECT_ROOT, "resources/maps"),
   );
   const terrain = await loadTerrainMap(
-    gameConfig.gameMap,
-    gameConfig.gameMapSize,
-    mapLoader,
+    await loadMapFiles(mapLoader, gameConfig.gameMap, gameConfig.gameMapSize),
   );
   const random = new PseudoRandom(simpleHash(gameStart.gameID));
   const nations = createNationsForGame(
@@ -235,6 +298,32 @@ async function main(): Promise<void> {
   );
   runner.init();
 
+  const gcTracker = opts.gcProfile ? new GcTracker() : null;
+  gcTracker?.start();
+  const heapSampler = opts.gcProfile ? new HeapSampler() : null;
+
+  const footprints: FootprintCheckpoint[] = [];
+  const recordFootprint = (label: string): void => {
+    if (!opts.footprint) return;
+    const cp = takeFootprintCheckpoint(label);
+    if (cp === null) {
+      throw new Error(
+        "--footprint requires the gc() global; run with NODE_OPTIONS=--expose-gc",
+      );
+    }
+    footprints.push(cp);
+  };
+  const snapshotDir = path.join(PROJECT_ROOT, "tests/perf/output");
+  const writeSnapshot = (label: string): void => {
+    fs.mkdirSync(snapshotDir, { recursive: true });
+    const file = path.join(
+      snapshotDir,
+      `fullgame-${opts.map.replace(/\W+/g, "_")}-${opts.seed}-${label}.heapsnapshot`,
+    );
+    console.log(`Writing heap snapshot ${path.relative(PROJECT_ROOT, file)}…`);
+    v8.writeHeapSnapshot(file);
+  };
+
   let turnNumber = 0;
   const runTick = (stats: TickStats): boolean => {
     runner.addTurn({ turnNumber: turnNumber++, intents: [] });
@@ -242,6 +331,7 @@ async function main(): Promise<void> {
     const start = performance.now();
     const ok = runner.executeNextTick();
     stats.record(tick, performance.now() - start);
+    heapSampler?.tick();
     return ok && fatalError === undefined;
   };
 
@@ -263,14 +353,25 @@ async function main(): Promise<void> {
       `${game.players().filter((p) => p.isAlive()).length} players spawned.`,
   );
 
-  // Main game phase, under the CPU profiler.
+  heapSampler?.closeWindow("spawn");
+  recordFootprint(`spawn (tick ${game.ticks() - 1})`);
+  if (opts.snapshotAt.includes(0)) {
+    writeSnapshot("tick0");
+  }
+
+  // Main game phase, under the CPU profiler and allocation sampler.
   const cpuProfiler = opts.cpuProfile ? new CpuProfiler() : null;
   if (cpuProfiler) {
     await cpuProfiler.start();
   }
+  const allocSampler = opts.allocProfile ? new AllocationSampler() : null;
+  if (allocSampler) {
+    await allocSampler.start();
+  }
   const gameStats = new TickStats();
   const gameStart_ = performance.now();
   let heapPeak = 0;
+  let windowStartTick = game.ticks();
   for (let i = 0; i < opts.ticks; i++) {
     if (!runTick(gameStats)) {
       console.error(`game errored at tick ${game.ticks()}:\n${fatalError}`);
@@ -280,9 +381,19 @@ async function main(): Promise<void> {
     if (i % 50 === 0) {
       heapPeak = Math.max(heapPeak, process.memoryUsage().heapUsed);
     }
+    if ((i + 1) % opts.window === 0 || i === opts.ticks - 1) {
+      heapSampler?.closeWindow(`${windowStartTick}-${game.ticks() - 1}`);
+      windowStartTick = game.ticks();
+      recordFootprint(`tick ${game.ticks() - 1}`);
+    }
+    if (opts.snapshotAt.includes(i + 1)) {
+      writeSnapshot(`tick${i + 1}`);
+    }
   }
   const gamePhaseMs = performance.now() - gameStart_;
   const profile = cpuProfiler ? await cpuProfiler.stop() : null;
+  const allocProfile = allocSampler ? await allocSampler.stop() : null;
+  const gcEvents = gcTracker ? await gcTracker.stop() : null;
 
   // ── Report ──
 
@@ -321,6 +432,23 @@ async function main(): Promise<void> {
       summary.slowest.map((s) => `#${s.tick} (${fmtMs(s.ms)}ms)`).join(", "),
   );
 
+  if (footprints.length > 0) {
+    console.log(`\n--- Live-heap footprint (after forced full GC) ---`);
+    console.log(
+      table(
+        ["checkpoint", "live MB", "total MB", "ext MB", "arrbuf MB", "rss MB"],
+        footprints.map((cp) => [
+          cp.label,
+          fmtMB(cp.liveHeapBytes),
+          fmtMB(cp.totalHeapBytes),
+          fmtMB(cp.externalBytes),
+          fmtMB(cp.arrayBuffersBytes),
+          fmtMB(cp.rssBytes),
+        ]),
+      ),
+    );
+  }
+
   if (opts.execProfile) {
     console.log(`\n--- Time by Execution class ---`);
     const rows = execProfiler.report();
@@ -352,6 +480,104 @@ async function main(): Promise<void> {
     console.log(
       `(execution total ${fmtMs(grandTotal)}ms, includes spawn phase; ` +
         `remainder of tick time is player updates, hashing, and tile updates)`,
+    );
+  }
+
+  if (gcEvents && heapSampler) {
+    const gamePhaseEvents = gcEvents.filter((e) => e.startTime >= gameStart_);
+    const gc = summarizeGcEvents(gamePhaseEvents);
+
+    console.log(`\n--- GC (game phase) ---`);
+    console.log(
+      table(
+        ["kind", "count", "total ms", "avg ms", "max ms"],
+        (["minor", "major", "incremental", "weakcb", "all"] as const).map(
+          (kind) => [
+            kind,
+            String(gc[kind].count),
+            fmtMs(gc[kind].totalMs),
+            fmtMs(gc[kind].count > 0 ? gc[kind].totalMs / gc[kind].count : 0),
+            fmtMs(gc[kind].maxMs),
+          ],
+        ),
+      ),
+    );
+    console.log(
+      `GC time: ${fmtMs(gc.all.totalMs)}ms = ` +
+        `${((gc.all.totalMs * 100) / gamePhaseMs).toFixed(1)}% of game-phase wall time`,
+    );
+
+    console.log(`\n--- Allocation & GC by window ---`);
+    const windowRow = (w: HeapWindow): string[] => {
+      const wgc = summarizeGcEvents(
+        gcTracker!.eventsBetween(w.startTime, w.endTime),
+      );
+      return [
+        w.label,
+        fmtMB(w.allocatedBytes),
+        w.ticks > 0 ? ((w.allocatedBytes / w.ticks) * 1e-3).toFixed(0) : "0",
+        String(wgc.minor.count),
+        fmtMs(wgc.minor.totalMs),
+        String(wgc.major.count),
+        fmtMs(wgc.major.totalMs),
+        fmtMs(wgc.incremental.totalMs),
+        fmtMB(w.heapUsedEnd),
+      ];
+    };
+    console.log(
+      table(
+        [
+          "ticks",
+          "alloc MB",
+          "KB/tick",
+          "minor#",
+          "minor ms",
+          "major#",
+          "major ms",
+          "incr ms",
+          "heap MB",
+        ],
+        heapSampler.all().map(windowRow),
+      ),
+    );
+    console.log(
+      `(alloc = sum of positive used-heap deltas between ticks; a lower bound on churn)`,
+    );
+  }
+
+  if (allocProfile) {
+    const { sites, totalBytes } = summarizeAllocationProfile(
+      allocProfile,
+      PROJECT_ROOT,
+    );
+    console.log(
+      `\n--- Top allocating functions (game phase, sampled; ` +
+        `~${fmtMB(totalBytes)} MB total incl. collected) ---`,
+    );
+    console.log(
+      table(
+        ["alloc MB", "%", "function", "location"],
+        sites
+          .slice(0, opts.top)
+          .map((s) => [
+            fmtMB(s.selfBytes),
+            s.selfPct.toFixed(1),
+            s.functionName,
+            s.location,
+          ]),
+      ),
+    );
+
+    const outDir = path.join(PROJECT_ROOT, "tests/perf/output");
+    fs.mkdirSync(outDir, { recursive: true });
+    const outFile = path.join(
+      outDir,
+      `fullgame-${opts.map.replace(/\W+/g, "_")}-${opts.seed}.heapprofile`,
+    );
+    fs.writeFileSync(outFile, JSON.stringify(allocProfile));
+    console.log(
+      `Heap profile written to ${path.relative(PROJECT_ROOT, outFile)}` +
+        ` (open in Chrome DevTools > Memory > Allocation sampling)`,
     );
   }
 

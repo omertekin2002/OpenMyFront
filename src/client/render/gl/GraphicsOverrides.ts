@@ -1,7 +1,21 @@
 import { z } from "zod";
 
+/**
+ * Selectable theme palettes. Each name maps to a `<name>-theme.json` in
+ * gl/ (registered in RenderSettings' THEMES) — extend both when adding a
+ * new palette.
+ */
+export const PALETTE_NAMES = ["default", "colorblind"] as const;
+
+export const COSMETICS_SHOW_FROM = ["everyone", "teammates", "self"] as const;
+
 export const GraphicsOverridesSchema = z
   .object({
+    // Which theme palette to render with (player colors, terrain tints, …).
+    palette: z.enum(PALETTE_NAMES),
+    // Color tribes from the theme's classic (pre-v34) bot pool instead of
+    // the flat Bot team color.
+    classicBotColors: z.boolean(),
     name: z
       .object({
         nameScaleFactor: z.number(),
@@ -17,22 +31,58 @@ export const GraphicsOverridesSchema = z
         iconSize: z.number(),
         classicIcons: z.boolean(),
         classicNumbers: z.boolean(),
+        // When false, structures keep their full icon at any zoom instead of
+        // collapsing to dots when zoomed out (forces dotsZoomThreshold to 0).
+        showDots: z.boolean(),
       })
       .partial(),
     mapOverlay: z
       .object({
+        navalHighlight: z.boolean(),
         highlightFillBrighten: z.number(),
         highlightBrighten: z.number(),
         highlightThicken: z.number(),
         territorySaturation: z.number(),
         territoryAlpha: z.number(),
         coordinateGridOpacity: z.number(),
+        // "#rrggbb" hex string; overrides the lingering fallout ground tint
+        // left on territory after a nuke.
+        staleNukeColor: z.string(),
+        // "#rrggbb" hex strings; normal-view relationship border tints for
+        // friendly (allied) and embargoed/enemy territory.
+        friendlyTintColor: z.string(),
+        embargoTintColor: z.string(),
+        // How strongly those tints override the territory border color (0-1).
+        friendlyTintRatio: z.number(),
+        embargoTintRatio: z.number(),
+      })
+      .partial(),
+    altView: z
+      .object({
+        // Opacity of the translucent relation-colored territory fill shown
+        // while holding the alt-view key (0 = borders only, 1 = opaque).
+        fillAlpha: z.number(),
+      })
+      .partial(),
+    affiliation: z
+      .object({
+        // "#rrggbb" hex strings; alt-view border colors for your own, allied,
+        // and enemy territory.
+        selfColor: z.string(),
+        allyColor: z.string(),
+        enemyColor: z.string(),
       })
       .partial(),
     railroad: z
       .object({
         railMinZoom: z.number(),
         railThickness: z.number(),
+      })
+      .partial(),
+    smallPlayerGlow: z
+      .object({
+        // Aura around small players' territory: 0 = off, 1 = full brightness.
+        strength: z.number(),
       })
       .partial(),
     passEnabled: z
@@ -43,15 +93,17 @@ export const GraphicsOverridesSchema = z
         fallout: z.boolean(),
       })
       .partial(),
-    accessibility: z
-      .object({
-        colorblind: z.boolean(),
-      })
-      .partial(),
     terrain: z
       .object({
+        // "#rrggbb" hex string; overrides the map background color (the area
+        // outside the map and impassable terrain, which renders to match).
+        backgroundColor: z.string(),
         // "#rrggbb" hex string; overrides the base ocean (deep water) color.
         oceanColor: z.string(),
+        sandColor: z.string(),
+        plainsColor: z.string(),
+        highlandColor: z.string(),
+        mountainColor: z.string(),
       })
       .partial(),
     lighting: z
@@ -63,7 +115,41 @@ export const GraphicsOverridesSchema = z
         falloffPower: z.number(),
       })
       .partial(),
+    /**
+     * Which of other players' cosmetics are drawn. Your own are always drawn.
+     * Category keys are shown unless explicitly false.
+     */
+    cosmetics: z
+      .object({
+        // Whose cosmetics besides your own are drawn.
+        showFrom: z.enum(COSMETICS_SHOW_FROM),
+        territorySkins: z.boolean(),
+        flags: z.boolean(),
+        // Opacity of every flag beside a name (0-1).
+        flagOpacity: z.number().min(0).max(1),
+        crowns: z.boolean(),
+        transportShipTrail: z.boolean(),
+        nukeTrail: z.boolean(),
+        nukeExplosion: z.boolean(),
+        structures: z.boolean(),
+        warship: z.boolean(),
+        train: z.boolean(),
+        railroad: z.boolean(),
+      })
+      .partial(),
+    /** Per-layer visibility toggles keyed by layer id. */
+    mapLayerVisibility: z.record(z.string(), z.boolean()),
+    /** Per-layer alpha (opacity 0–1) keyed by layer id. */
+    mapLayerAlpha: z.record(z.string(), z.number().min(0).max(1)),
   })
   .partial();
 
 export type GraphicsOverrides = z.infer<typeof GraphicsOverridesSchema>;
+
+/** User-saved graphics presets: preset name → the overrides it applies. */
+export const GraphicsPresetsSchema = z.record(
+  z.string(),
+  GraphicsOverridesSchema,
+);
+
+export type GraphicsPresets = z.infer<typeof GraphicsPresetsSchema>;

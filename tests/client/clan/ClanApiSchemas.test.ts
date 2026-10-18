@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
 import {
   ClanBanSchema,
+  ClanDonationSchema,
+  ClanDonationsResponseSchema,
   ClanGameFilterSchema,
   ClanGamePlayerSchema,
   ClanGameResultSchema,
@@ -9,7 +10,9 @@ import {
   ClanInfoSchema,
   ClanJoinRequestSchema,
   ClanMemberSchema,
-} from "../../../src/core/ClanApiSchemas";
+  ClanMembersResponseSchema,
+} from "@openfront/shared/ClanApiSchemas";
+import { describe, expect, it } from "vitest";
 
 describe("ClanInfoSchema", () => {
   const base = {
@@ -57,6 +60,34 @@ describe("ClanInfoSchema", () => {
       expect(result.data.memberCount).toBeUndefined();
     }
   });
+
+  it("accepts a string discordUrl", () => {
+    const result = ClanInfoSchema.safeParse({
+      ...base,
+      discordUrl: "https://discord.gg/abc123",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a null discordUrl (link unset)", () => {
+    const result = ClanInfoSchema.safeParse({ ...base, discordUrl: null });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.discordUrl).toBeNull();
+  });
+
+  it("accepts data without discordUrl (omitted by browse results)", () => {
+    const result = ClanInfoSchema.safeParse(base);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.discordUrl).toBeUndefined();
+  });
+
+  it("rejects a discordUrl longer than 255 characters", () => {
+    const result = ClanInfoSchema.safeParse({
+      ...base,
+      discordUrl: "https://discord.gg/" + "a".repeat(255),
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("ClanMemberSchema", () => {
@@ -76,6 +107,64 @@ describe("ClanMemberSchema", () => {
       publicId: "abc123",
     });
     expect(result.success).toBe(false);
+  });
+
+  it("leaves level fields unset for a member without them", () => {
+    const result = ClanMemberSchema.parse({
+      role: "member",
+      joinedAt: "2024-03-01T09:30:00.000Z",
+      publicId: "abc123",
+    });
+    expect(result.level).toBeUndefined();
+    expect(result.prestige).toBeUndefined();
+    expect(result.legend).toBeUndefined();
+  });
+
+  it("keeps a member's level fields", () => {
+    const result = ClanMemberSchema.parse({
+      role: "member",
+      joinedAt: "2024-03-01T09:30:00.000Z",
+      publicId: "abc123",
+      level: 100,
+      prestige: 10,
+      legend: true,
+    });
+    expect(result).toMatchObject({ level: 100, prestige: 10, legend: true });
+  });
+
+  it("drops a malformed legend flag instead of rejecting the member", () => {
+    const result = ClanMemberSchema.parse({
+      role: "member",
+      joinedAt: "2024-03-01T09:30:00.000Z",
+      publicId: "abc123",
+      level: 5,
+      prestige: 0,
+      legend: "yes",
+    });
+    expect(result).toMatchObject({ publicId: "abc123", level: 5 });
+    expect(result.legend).toBeUndefined();
+  });
+
+  it("still parses a member list with one malformed row", () => {
+    const row = (publicId: string, prestige: unknown) => ({
+      role: "member",
+      joinedAt: "2024-03-01T09:30:00.000Z",
+      publicId,
+      level: 40,
+      prestige,
+      legend: false,
+    });
+    const result = ClanMembersResponseSchema.parse({
+      results: [row("good", 2), row("bad", null), row("high", 400)],
+      total: 3,
+      page: 1,
+      limit: 10,
+    });
+    expect(result.results.map((m) => m.prestige)).toEqual([
+      2,
+      undefined,
+      undefined,
+    ]);
   });
 
   it("rejects null publicId", () => {
@@ -125,6 +214,26 @@ describe("ClanMemberSchema", () => {
     }
   });
 
+  it("accepts an account username, null, or absence (older API)", () => {
+    const base = {
+      role: "member",
+      joinedAt: "2024-03-01T09:30:00.000Z",
+      publicId: "abc123",
+    };
+    const named = ClanMemberSchema.safeParse({
+      ...base,
+      username: "bob.4821",
+    });
+    expect(named.success).toBe(true);
+    if (named.success) {
+      expect(named.data.username).toBe("bob.4821");
+    }
+    expect(
+      ClanMemberSchema.safeParse({ ...base, username: null }).success,
+    ).toBe(true);
+    expect(ClanMemberSchema.safeParse(base).success).toBe(true);
+  });
+
   it("rejects stats missing a bucket", () => {
     const result = ClanMemberSchema.safeParse({
       role: "member",
@@ -154,6 +263,21 @@ describe("ClanJoinRequestSchema", () => {
       createdAt: "2024-06-10",
     });
     expect(result.success).toBe(false);
+  });
+
+  it("accepts the requester's account username, null, or absence", () => {
+    const base = {
+      publicId: "player-xyz",
+      createdAt: "2024-06-10T08:00:00.000Z",
+    };
+    expect(
+      ClanJoinRequestSchema.safeParse({ ...base, username: "bob.4821" })
+        .success,
+    ).toBe(true);
+    expect(
+      ClanJoinRequestSchema.safeParse({ ...base, username: null }).success,
+    ).toBe(true);
+    expect(ClanJoinRequestSchema.safeParse(base).success).toBe(true);
   });
 });
 
@@ -199,6 +323,23 @@ describe("ClanBanSchema", () => {
     const result = ClanBanSchema.safeParse({ ...validBan, bannedBy: null });
     expect(result.success).toBe(false);
   });
+
+  it("accepts account usernames for both the banned player and the officer", () => {
+    const result = ClanBanSchema.safeParse({
+      ...validBan,
+      username: null,
+      bannedByUsername: "bigboss",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.username).toBeNull();
+      expect(result.data.bannedByUsername).toBe("bigboss");
+    }
+  });
+
+  it("accepts a ban without the username fields (older API)", () => {
+    expect(ClanBanSchema.safeParse(validBan).success).toBe(true);
+  });
 });
 
 describe("ClanGameResultSchema", () => {
@@ -232,6 +373,26 @@ describe("ClanGamePlayerSchema", () => {
     expect(ClanGamePlayerSchema.safeParse(validPlayer).success).toBe(true);
   });
 
+  it("accepts the verified flag or its absence (older API)", () => {
+    const verified = ClanGamePlayerSchema.safeParse({
+      ...validPlayer,
+      verified: true,
+    });
+    expect(verified.success).toBe(true);
+    if (verified.success) expect(verified.data.verified).toBe(true);
+    // validPlayer omits verified entirely — still valid (→ undefined).
+    const bare = ClanGamePlayerSchema.safeParse(validPlayer);
+    expect(bare.success).toBe(true);
+    if (bare.success) expect(bare.data.verified).toBeUndefined();
+  });
+
+  it("rejects a non-boolean verified", () => {
+    expect(
+      ClanGamePlayerSchema.safeParse({ ...validPlayer, verified: "yes" })
+        .success,
+    ).toBe(false);
+  });
+
   it("rejects when won is not a boolean", () => {
     expect(
       ClanGamePlayerSchema.safeParse({ ...validPlayer, won: "true" }).success,
@@ -261,6 +422,17 @@ describe("ClanGameSchema", () => {
 
   it("accepts a fully-populated game", () => {
     expect(ClanGameSchema.safeParse(validGame).success).toBe(true);
+  });
+
+  it("normalizes accidental whitespace around archived map names", () => {
+    const result = ClanGameSchema.safeParse({
+      ...validGame,
+      map: "Deglaciated Antarctica ",
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.map).toBe("Deglaciated Antarctica");
   });
 
   it("accepts playerTeams: null (FFA / non-team games)", () => {
@@ -355,5 +527,66 @@ describe("ClanGamesResponseSchema", () => {
       nextCursor: null,
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("ClanDonationSchema", () => {
+  const base = {
+    id: "1834",
+    currencyType: "soft",
+    amount: "500",
+    reason: "clan_donation",
+    note: null,
+    createdBy: "Xk3pQ9",
+    createdByUsername: "evan.0042",
+    createdAt: "2026-08-26T02:10:31.512Z",
+  };
+
+  it("accepts a donation row as documented", () => {
+    expect(ClanDonationSchema.safeParse(base).success).toBe(true);
+  });
+
+  it("accepts a deleted donor (null createdBy and username)", () => {
+    const result = ClanDonationSchema.safeParse({
+      ...base,
+      createdBy: null,
+      createdByUsername: null,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("tolerates absent note and createdByUsername", () => {
+    const rest: Partial<typeof base> = { ...base };
+    delete rest.note;
+    delete rest.createdByUsername;
+    expect(ClanDonationSchema.safeParse(rest).success).toBe(true);
+  });
+
+  it("rejects a numeric amount — bigints travel as strings", () => {
+    expect(ClanDonationSchema.safeParse({ ...base, amount: 500 }).success).toBe(
+      false,
+    );
+  });
+
+  it("rejects an unknown currencyType", () => {
+    expect(
+      ClanDonationSchema.safeParse({ ...base, currencyType: "gold" }).success,
+    ).toBe(false);
+  });
+
+  it("rejects a non-ISO createdAt", () => {
+    expect(
+      ClanDonationSchema.safeParse({ ...base, createdAt: "yesterday" }).success,
+    ).toBe(false);
+  });
+
+  it("parses the paginated envelope", () => {
+    const result = ClanDonationsResponseSchema.safeParse({
+      results: [base],
+      total: 27,
+      page: 1,
+      limit: 10,
+    });
+    expect(result.success).toBe(true);
   });
 });

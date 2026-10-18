@@ -1,6 +1,6 @@
+import { PathFinderStepper } from "@openfront/engine/pathfinding/PathFinderStepper";
+import { PathFinder, PathStatus } from "@openfront/engine/pathfinding/types";
 import { describe, expect, it } from "vitest";
-import { PathFinderStepper } from "../../../src/core/pathfinding/PathFinderStepper";
-import { PathFinder, PathStatus } from "../../../src/core/pathfinding/types";
 
 describe("PathFinderStepper", () => {
   function createMockFinder(
@@ -122,6 +122,22 @@ describe("PathFinderStepper", () => {
 
       // Recomputed path after invalidation
       expect(callCount).toBe(2);
+    });
+  });
+
+  describe("pathAfterNext", () => {
+    it("returns a copy of the cached remainder", () => {
+      const pathMap = new Map<string, number[]>([["1->5", [1, 2, 3, 4, 5]]]);
+      const stepper = new PathFinderStepper(createMockFinder(pathMap));
+
+      expect(stepper.pathAfterNext()).toBeNull();
+      expect(stepper.next(1, 5)).toEqual({ status: PathStatus.NEXT, node: 2 });
+      const path = stepper.pathAfterNext();
+      expect(path).toBeInstanceOf(Uint32Array);
+      expect(Array.from(path!)).toEqual([2, 3, 4, 5]);
+
+      path![0] = 99;
+      expect(stepper.next(2, 5)).toEqual({ status: PathStatus.NEXT, node: 3 });
     });
   });
 

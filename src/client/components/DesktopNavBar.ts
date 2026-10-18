@@ -1,12 +1,10 @@
+import { assetUrl } from "@openfront/shared/AssetUrls";
 import { LitElement, html } from "lit";
 import { customElement } from "lit/decorators.js";
-import { assetUrl } from "../../core/AssetUrls";
-import { NavNotificationsController } from "./NavNotificationsController";
+import "./NavUtilityIcons";
 
 @customElement("desktop-nav-bar")
 export class DesktopNavBar extends LitElement {
-  private _notifications = new NavNotificationsController(this);
-
   createRenderRoot() {
     return this;
   }
@@ -70,27 +68,17 @@ export class DesktopNavBar extends LitElement {
         ></button>
         <!-- Desktop Navigation Menu Items -->
         <button
-          class="nav-menu-item text-white/70 hover:text-malibu-blue  font-medium tracking-wider uppercase cursor-pointer transition-colors [&.active]:text-malibu-blue "
-          data-page="page-settings"
-          data-i18n="main.settings"
+          class="nav-menu-item ${currentPage === "page-inventory"
+            ? "active"
+            : ""} text-white/70 hover:text-malibu-blue font-medium tracking-wider uppercase cursor-pointer transition-colors [&.active]:text-malibu-blue"
+          data-page="page-inventory"
+          data-i18n="main.inventory"
         ></button>
-        <div class="relative">
-          <button
-            class="nav-menu-item text-white/70 hover:text-malibu-blue  font-medium tracking-wider uppercase cursor-pointer transition-colors [&.active]:text-malibu-blue "
-            data-page="page-help"
-            data-i18n="main.help"
-            @click=${this._notifications.onHelpClick}
-          ></button>
-          ${this._notifications.showHelpDot()
-            ? html`
-                <span
-                  class="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-ping"
-                ></span>
-                <span
-                  class="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full"
-                ></span>
-              `
-            : ""}
+        <!-- Utility cluster: help and settings are utility affordances rather
+             than page links, so they sit tight together behind a divider
+             instead of in the nav item list. -->
+        <div class="flex items-center gap-1 pl-5 ml-1 border-l border-white/10">
+          <nav-utility-icons size="desktop"></nav-utility-icons>
         </div>
       </nav>
     `;

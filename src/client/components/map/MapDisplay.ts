@@ -1,12 +1,10 @@
+import { Difficulty, GameMapType } from "@openfront/engine-api/game/GameTypes";
 import { LitElement, html } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import medalIconRaw from "../../../../resources/images/MedalIconWhite.svg?raw";
-import { Difficulty, GameMapType } from "../../../core/game/Game";
 import { terrainMapFileLoader } from "../../TerrainMapFileLoader";
 import { translateText } from "../../Utils";
 import { starIcon } from "./MapFavorites";
-
-const medalMaskUrl = `url('data:image/svg+xml;utf8,${encodeURIComponent(medalIconRaw)}') no-repeat center / contain`;
+import { MEDAL_ORDER, medalIcon } from "./Medals";
 
 @customElement("map-display")
 export class MapDisplay extends LitElement {
@@ -76,7 +74,7 @@ export class MapDisplay extends LitElement {
       this.hasNations =
         Array.isArray(manifest.nations) && manifest.nations.length > 0;
     } catch (error) {
-      console.error("Failed to load map data:", error);
+      console.warn("Failed to load map data:", error);
     } finally {
       this.isLoading = false;
     }
@@ -134,13 +132,13 @@ export class MapDisplay extends LitElement {
         class="w-full h-full p-3 flex flex-col items-center justify-between rounded-xl border cursor-pointer transition-all duration-200 active:scale-95 gap-3 group ${this
           .selected
           ? "bg-malibu-blue/20 border-malibu-blue/50 shadow-[var(--shadow-malibu-blue-strong)]"
-          : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 hover:-translate-y-1"}"
+          : "bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 hover:scale-105"}"
       >
         ${this.isLoading
           ? html`<div
               class="w-full aspect-[2/1] text-white/40 transition-transform duration-200 rounded-lg bg-black/20 text-xs font-bold uppercase tracking-wider flex items-center justify-center animate-pulse"
             >
-              ${translateText("map_component.loading")}
+              ${translateText("common.loading")}
             </div>`
           : this.mapWebpPath
             ? html`<div
@@ -177,30 +175,10 @@ export class MapDisplay extends LitElement {
   }
 
   private renderMedals() {
-    const medalOrder: Difficulty[] = [
-      Difficulty.Easy,
-      Difficulty.Medium,
-      Difficulty.Hard,
-      Difficulty.Impossible,
-    ];
-    const colors: Record<Difficulty, string> = {
-      [Difficulty.Easy]: "var(--medal-easy)",
-      [Difficulty.Medium]: "var(--medal-medium)",
-      [Difficulty.Hard]: "var(--medal-hard)",
-      [Difficulty.Impossible]: "var(--medal-impossible)",
-    };
     const wins = this.readWins();
-    return medalOrder.map((medal) => {
-      const earned = wins.has(medal);
-      const mask = medalMaskUrl;
-      return html`<div
-        class="w-5 h-5 ${earned ? "opacity-100" : "opacity-25"}"
-        style="background-color:${colors[
-          medal
-        ]}; mask: ${mask}; -webkit-mask: ${mask};"
-        title=${translateText(`difficulty.${medal.toLowerCase()}`)}
-      ></div>`;
-    });
+    return MEDAL_ORDER.map((medal) =>
+      medalIcon(medal, "w-5 h-5", wins.has(medal)),
+    );
   }
 
   private readWins(): Set<Difficulty> {

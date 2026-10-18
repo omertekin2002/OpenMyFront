@@ -17,7 +17,12 @@
     "nameDebug": false
   },
   "terrain": {
-    "oceanColor": "#4785b5"
+    "backgroundColor": "#3c3c3c",
+    "oceanColor": "#4785b5",
+    "sandColor": "#CCCB9E",
+    "plainsColor": "#BEDC8A",
+    "highlandColor": "#DCCB9E",
+    "mountainColor": "#e6e6e6"
   },
   "falloutBloom": {
     "broilSpeedCold": 0.0018,
@@ -68,7 +73,9 @@
     "lightRadiusMultiplier": 1
   },
   "mapOverlay": {
+    "navalHighlight": false,
     "trailAlpha": 0.588,
+    "spiralResolutionScale": 0.25,
     "defenseCheckerDarken": 0.7,
     "territoryDefenseDarken": 0.85,
     "territorySaturation": 0.85,
@@ -108,7 +115,7 @@
     "enemyB": 0
   },
   "railroad": {
-    "railMinZoom": 4,
+    "railMinZoom": 3,
     "railFadeRange": 2,
     "railDetailZoom": 6,
     "railAlpha": 1,
@@ -130,7 +137,7 @@
         "iconFill": 0.85
       },
       "Factory": {
-        "scale": 1,
+        "scale": 1.08,
         "iconFill": 0.85
       },
       "Defense Post": {
@@ -184,7 +191,15 @@
     "colorYellowB": 0.059,
     "colorGreenR": 0.173,
     "colorGreenG": 0.937,
-    "colorGreenB": 0.071
+    "colorGreenB": 0.071,
+    "veterancyPipW": 4,
+    "veterancyPipH": 1,
+    "veterancyPipGap": 1,
+    "veterancyPipOffsetX": 1.5,
+    "veterancyPipOffsetY": 3.5,
+    "veterancyR": 1.0,
+    "veterancyG": 0.84,
+    "veterancyB": 0.0
   },
   "unit": {
     "unitSize": 13,
@@ -216,9 +231,11 @@
     "nameShadeBot": 0.4,
     "emojiRowOffset": 1.4,
     "statusRowOffset": 1.4,
+    "statusOutlineWidth": 6,
     "hoverFadeAlpha": 0.5,
     "hoverGlowWidth": 5,
-    "hoverGlowAlpha": 0.75
+    "hoverGlowAlpha": 0.75,
+    "flagAlpha": 1
   },
   "fx": {
     "shockwaveRingWidth": 0.04,
@@ -232,7 +249,11 @@
     "debrisFadeOut": 0.8,
     "conquestLifetimeMs": 2500,
     "conquestFadeIn": 0.1,
-    "conquestFadeOut": 0.6
+    "conquestFadeOut": 0.6,
+    "nukeRadiusAtom": 70,
+    "nukeRadiusHydro": 160,
+    "nukeRadiusMirv": 70,
+    "debrisDensity": 1
   },
   "nukeTrajectory": {
     "lineWidth": 2.5,
@@ -314,12 +335,19 @@
     "selfMaxRad": 30,
     "mateMinRad": 5,
     "mateMaxRad": 14,
-    "animSpeed": 0.005,
+    "animSpeed": 0.008,
     "gradientInnerEdge": 0.01,
     "gradientSolidEnd": 0.1
   },
+  "smallPlayerGlow": {
+    "color": [1.0, 0.12, 0.1],
+    "alpha": 0.9,
+    "pulseSpeed": 0.003,
+    "strength": 0.35
+  },
   "altView": {
     "gridFontSize": 24,
+    "fillAlpha": 0.15,
     "recolorStructures": true
   },
   "tileDrip": {
@@ -331,24 +359,24 @@
       "intensity": 1.2
     },
     "Port": {
-      "radius": 12,
-      "intensity": 1
+      "radius": 18,
+      "intensity": 1.2
     },
     "Factory": {
-      "radius": 12,
-      "intensity": 1
+      "radius": 18,
+      "intensity": 1.2
     },
     "Defense Post": {
-      "radius": 10,
-      "intensity": 0.9
+      "radius": 18,
+      "intensity": 1.2
     },
     "SAM Launcher": {
-      "radius": 10,
-      "intensity": 0.9
+      "radius": 18,
+      "intensity": 1.2
     },
     "Missile Silo": {
-      "radius": 10,
-      "intensity": 0.9
+      "radius": 18,
+      "intensity": 1.2
     },
     "Transport": {
       "radius": 6,

@@ -9,9 +9,9 @@
  * smallID lookup, tick tracking, and tile delta accumulation.
  */
 
+import { UnitType } from "@openfront/engine-api/game/GameTypes";
+import { GameUpdateType } from "@openfront/engine-api/game/GameUpdates";
 import { describe, expect, it } from "vitest";
-import { UnitType } from "../../../src/core/game/Game";
-import { GameUpdateType } from "../../../src/core/game/GameUpdates";
 import {
   makeEmptyGu,
   makeGameView,
@@ -140,10 +140,51 @@ describe("GameView.update — players", () => {
     );
     expect(game.myPlayer()?.name()).toBe("RealName");
   });
+
+  it("invalidates the teamClanTag cache when a new player is added", () => {
+    const game = makeGameView();
+    // 1. Initial state with 1 player in team 1
+    game.update(
+      withPlayers(1, [
+        makePlayerUpdate({ id: "p1", smallID: 1, team: "1", clanTag: "MARS" }),
+      ]),
+    );
+    expect(game.teamClanTag("1")).toBe("MARS");
+
+    // 2. Add second player to team 1 in tick 2
+    game.update(
+      withPlayers(2, [
+        makePlayerUpdate({ id: "p2", smallID: 2, team: "1", clanTag: "UN" }),
+      ]),
+    );
+    // Cache should have been invalidated, and recalculation should see both players
+    expect(game.teamClanTag("1")).toBe("MARS / UN");
+  });
+
+  it("can explicitly invalidate teamClanTag cache (e.g. for anonymous names toggle)", () => {
+    const game = makeGameView();
+    game.update(
+      withPlayers(1, [
+        makePlayerUpdate({ id: "p1", smallID: 1, team: "1", clanTag: "MARS" }),
+      ]),
+    );
+    expect(game.teamClanTag("1")).toBe("MARS");
+
+    // Simulate the streamer mode toggle bypassing GameUpdate logic
+    // by silently mutating the static player clan tag
+    game.player("p1").static.clanTag = "EARTH";
+
+    // Explicitly invalidate cache
+    game.invalidateTeamClanTags();
+
+    // The next lookup will lazily re-evaluate it based on current player state
+    // If invalidation is broken, this would incorrectly return "MARS"
+    expect(game.teamClanTag("1")).toBe("EARTH");
+  });
 });
 
 describe("GameView.update — packed channels", () => {
-  it("packedPlayerUpdates quads update tilesOwned/gold/troops in place", () => {
+  it("packedPlayerUpdates quints update tilesOwned/gold/troops/goldEarned in place", () => {
     const game = makeGameView();
     game.update(
       withPlayers(1, [
@@ -152,14 +193,15 @@ describe("GameView.update — packed channels", () => {
     );
 
     const gu = makeEmptyGu(2);
-    // [smallID, tilesOwned, gold, troops]
-    gu.packedPlayerUpdates = new Float64Array([1, 42, 999, 250]);
+    // [smallID, tilesOwned, gold, troops, goldEarned]
+    gu.packedPlayerUpdates = new Float64Array([1, 42, 999, 250, 5000]);
     game.update(gu);
 
     const alice = game.player("alice");
     expect(alice.numTilesOwned()).toBe(42);
     expect(alice.gold()).toBe(999n);
     expect(alice.troops()).toBe(250);
+    expect(alice.goldEarned()).toBe(5000);
   });
 
   it("packedAttackUpdates patches troop counts by direction and index", () => {
@@ -208,13 +250,13 @@ describe("GameView.update — packed channels", () => {
     expect(alice.incomingAttacks().map((a) => a.troops)).toEqual([75]);
   });
 
-  it("quads for unknown smallIDs and out-of-range attack indexes are ignored", () => {
+  it("quints for unknown smallIDs and out-of-range attack indexes are ignored", () => {
     const game = makeGameView();
     game.update(
       withPlayers(1, [makePlayerUpdate({ id: "alice", smallID: 1 })]),
     );
     const gu = makeEmptyGu(2);
-    gu.packedPlayerUpdates = new Float64Array([99, 1, 1, 1]);
+    gu.packedPlayerUpdates = new Float64Array([99, 1, 1, 1, 1]);
     gu.packedAttackUpdates = new Float64Array([1, 0, 5, 123, 99, 1, 0, 7]);
     expect(() => game.update(gu)).not.toThrow();
   });
@@ -284,14 +326,14 @@ describe("GameView.update — packed channels", () => {
     expect(alice.incomingAttacks().map((a) => a.troops)).toEqual([75]);
   });
 
-  it("gold survives the float64 quad exactly, including > 2^32 values", () => {
+  it("gold survives the float64 quint exactly, including > 2^32 values", () => {
     const game = makeGameView();
     game.update(
       withPlayers(1, [makePlayerUpdate({ id: "alice", smallID: 1 })]),
     );
     const bigGold = 2 ** 52 + 11; // integer, exactly representable in f64
     const gu = makeEmptyGu(2);
-    gu.packedPlayerUpdates = new Float64Array([1, 0, bigGold, 0]);
+    gu.packedPlayerUpdates = new Float64Array([1, 0, bigGold, 0, 0]);
     game.update(gu);
     expect(game.player("alice").gold()).toBe(BigInt(bigGold));
   });
@@ -663,23 +705,21 @@ describe("GameView.frameData() — renderer contract", () => {
     game.update(gu2);
     const ct = game.frameData().changedTiles;
     expect(ct).not.toBeNull();
-    expect(ct!.map((t) => t.ref).sort((a, b) => a - b)).toEqual([3, 5, 9]);
+    expect([...ct!].sort((a, b) => a - b)).toEqual([3, 5, 9]);
   });
 
-  it("changedTiles scratch array is reused across ticks (no per-tick alloc)", () => {
+  it("changedTiles holds only the current tick's refs", () => {
     const game = makeGameView({ width: 4, height: 4 });
     game.update(makeEmptyGu(1)); // first populate (changedTiles = null)
     const gu2 = makeEmptyGu(2);
     gu2.packedTileUpdates = new Uint32Array([1, 0]);
     game.update(gu2);
-    const ct1 = game.frameData().changedTiles;
+    expect(game.frameData().changedTiles).toEqual([1]);
 
     const gu3 = makeEmptyGu(3);
     gu3.packedTileUpdates = new Uint32Array([2, 0]);
     game.update(gu3);
-    const ct2 = game.frameData().changedTiles;
-
-    expect(ct2).toBe(ct1); // same array instance
+    expect(game.frameData().changedTiles).toEqual([2]);
   });
 
   it("frame.units is === gameView.unitStates() (same long-lived map)", () => {
@@ -769,5 +809,90 @@ describe("GameView.frameData() — renderer contract", () => {
     // Cross-team players stay neutral.
     expect(relationMatrix[1 * relationSize + 3]).toBe(RELATION_NEUTRAL);
     expect(relationMatrix[3 * relationSize + 1]).toBe(RELATION_NEUTRAL);
+  });
+});
+
+describe("GameView.unitsOwnedBy — per-tick owner index", () => {
+  function withUnits(
+    tick: number,
+    units: ReturnType<typeof makeUnitUpdate>[],
+    players: ReturnType<typeof makePlayerUpdate>[] = [],
+  ) {
+    const gu = makeEmptyGu(tick);
+    gu.updates[GameUpdateType.Unit] = units;
+    gu.updates[GameUpdateType.Player] = players;
+    return gu;
+  }
+
+  it("groups active units by owner smallID", () => {
+    const game = makeGameView();
+    game.update(
+      withUnits(1, [
+        makeUnitUpdate({ id: 1, ownerID: 1, unitType: UnitType.City }),
+        makeUnitUpdate({ id: 2, ownerID: 1, unitType: UnitType.Port }),
+        makeUnitUpdate({ id: 3, ownerID: 2, unitType: UnitType.City }),
+      ]),
+    );
+    expect(game.unitsOwnedBy(1).map((u) => u.id())).toEqual([1, 2]);
+    expect(game.unitsOwnedBy(2).map((u) => u.id())).toEqual([3]);
+    expect(game.unitsOwnedBy(99)).toEqual([]);
+  });
+
+  it("excludes inactive units", () => {
+    const game = makeGameView();
+    game.update(
+      withUnits(1, [
+        makeUnitUpdate({ id: 1, ownerID: 1, isActive: true }),
+        makeUnitUpdate({ id: 2, ownerID: 1, isActive: false }),
+      ]),
+    );
+    expect(game.unitsOwnedBy(1).map((u) => u.id())).toEqual([1]);
+  });
+
+  it("reflects ownership changes on the next tick (capture)", () => {
+    const game = makeGameView();
+    game.update(withUnits(1, [makeUnitUpdate({ id: 1, ownerID: 1 })]));
+    expect(game.unitsOwnedBy(1)).toHaveLength(1);
+    expect(game.unitsOwnedBy(2)).toHaveLength(0);
+
+    game.update(withUnits(2, [makeUnitUpdate({ id: 1, ownerID: 2 })]));
+    expect(game.unitsOwnedBy(1)).toHaveLength(0);
+    expect(game.unitsOwnedBy(2)).toHaveLength(1);
+  });
+
+  it("reflects unit death on the tick it happens", () => {
+    const game = makeGameView();
+    game.update(withUnits(1, [makeUnitUpdate({ id: 1, ownerID: 1 })]));
+    expect(game.unitsOwnedBy(1)).toHaveLength(1);
+
+    game.update(
+      withUnits(2, [makeUnitUpdate({ id: 1, ownerID: 1, isActive: false })]),
+    );
+    expect(game.unitsOwnedBy(1)).toHaveLength(0);
+  });
+
+  it("PlayerView.units() filters the owner's units by type", () => {
+    const game = makeGameView();
+    const gu = withUnits(
+      1,
+      [
+        makeUnitUpdate({ id: 1, ownerID: 1, unitType: UnitType.City }),
+        makeUnitUpdate({ id: 2, ownerID: 1, unitType: UnitType.Port }),
+        makeUnitUpdate({ id: 3, ownerID: 1, unitType: UnitType.City }),
+        makeUnitUpdate({ id: 4, ownerID: 2, unitType: UnitType.City }),
+      ],
+      [
+        makePlayerUpdate({ id: "alice", smallID: 1 }),
+        makePlayerUpdate({ id: "bob", smallID: 2 }),
+      ],
+    );
+    game.update(gu);
+
+    const alice = game.player("alice");
+    expect(alice.units(UnitType.City).map((u) => u.id())).toEqual([1, 3]);
+    expect(alice.units().map((u) => u.id())).toEqual([1, 2, 3]);
+    // Returned arrays are copies — mutating them must not corrupt the index.
+    alice.units().pop();
+    expect(alice.units()).toHaveLength(3);
   });
 });

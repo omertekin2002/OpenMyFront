@@ -1,5 +1,6 @@
 import colorblindTheme from "./colorblind-theme.json";
 import defaultTheme from "./default-theme.json";
+import { PALETTE_NAMES } from "./GraphicsOverrides";
 import defaults from "./render-settings.json";
 
 /**
@@ -18,7 +19,11 @@ export interface ThemeSettings {
   teamColors: Record<string, string>;
   humanColors: string[];
   nationColors: string[];
-  botColors: string[];
+  /**
+   * The pre-v34 tribe (bot) color pool, used instead of the flat Bot team
+   * color when the classicBotColors graphics override is on.
+   */
+  classicBotColors: string[];
   /** Used when the primary palettes are exhausted. */
   fallbackColors: string[];
   /** Border = territory color darkened by this absolute amount. */
@@ -60,10 +65,20 @@ export interface RenderSettings {
   };
   terrain: {
     /**
+     * Map background color as a "#rrggbb" hex string — the clear color drawn
+     * outside the map quad. Impassable terrain is baked to the same color so
+     * the map keeps its non-rectangular silhouette.
+     */
+    backgroundColor: string;
+    /**
      * Base (shallowest) color of deep water as a "#rrggbb" hex string. The
      * per-depth brightness gradient is preserved relative to this color.
      */
     oceanColor: string;
+    sandColor: string;
+    plainsColor: string;
+    highlandColor: string;
+    mountainColor: string;
   };
   falloutBloom: {
     broilSpeedCold: number;
@@ -115,6 +130,11 @@ export interface RenderSettings {
   };
   mapOverlay: {
     trailAlpha: number;
+    /**
+     * Resolution of the offscreen spiral-trail buffer relative to the canvas
+     * (0..1). Lower = cheaper + softer/glowier (bilinear upsample).
+     */
+    spiralResolutionScale: number;
     defenseCheckerDarken: number;
     territoryDefenseDarken: number;
     /** Saturation of the territory fill. 1 = full color, 0 = grayscale. */
@@ -128,6 +148,7 @@ export interface RenderSettings {
     staleNukeR: number;
     staleNukeG: number;
     staleNukeB: number;
+    navalHighlight: boolean;
     highlightBrighten: number;
     highlightFillBrighten: number;
     highlightThicken: number;
@@ -227,6 +248,15 @@ export interface RenderSettings {
     colorGreenR: number;
     colorGreenG: number;
     colorGreenB: number;
+    // Warship veterancy rank pips (gold lines at the sprite's bottom-right)
+    veterancyPipW: number;
+    veterancyPipH: number;
+    veterancyPipGap: number;
+    veterancyPipOffsetX: number;
+    veterancyPipOffsetY: number;
+    veterancyR: number;
+    veterancyG: number;
+    veterancyB: number;
   };
   unit: {
     unitSize: number;
@@ -260,12 +290,15 @@ export interface RenderSettings {
     nameShadeBot: number;
     emojiRowOffset: number;
     statusRowOffset: number;
+    /** Dark outline radius (atlas texels) drawn behind the alliance icon; 0 = off. */
+    statusOutlineWidth: number;
     /** Alpha multiplier applied to a name while the cursor is over it. */
     hoverFadeAlpha: number;
     /** White glow behind the hovered player's name: px past the outline. */
     hoverGlowWidth: number;
     /** Peak opacity of the hover glow (0 disables it). */
     hoverGlowAlpha: number;
+    flagAlpha: number;
   };
   fx: {
     shockwaveRingWidth: number;
@@ -280,6 +313,12 @@ export interface RenderSettings {
     conquestLifetimeMs: number;
     conquestFadeIn: number;
     conquestFadeOut: number;
+    /** Visual (not gameplay) explosion radii in world tiles, per bomb type. */
+    nukeRadiusAtom: number;
+    nukeRadiusHydro: number;
+    nukeRadiusMirv: number;
+    /** Multiplier on the nuke debris sprite count (1 = default scatter). */
+    debrisDensity: number;
   };
   nukeTrajectory: {
     lineWidth: number; // px — main line stroke width
@@ -365,9 +404,17 @@ export interface RenderSettings {
     gradientInnerEdge: number; // static gradient inner ramp end (0–1)
     gradientSolidEnd: number; // static gradient solid band end (0–1)
   };
+  smallPlayerGlow: {
+    color: number[]; // RGB, each 0–1
+    alpha: number; // peak opacity (0–1)
+    pulseSpeed: number; // breath animation speed
+    strength: number; // opacity fade: 0 = off, 1 = full brightness (default 0.35)
+  };
   altView: {
     gridFontSize: number;
     recolorStructures: boolean;
+    /** Opacity of the translucent affiliation-colored territory fill. */
+    fillAlpha: number;
   };
   tileDrip: {
     /**
@@ -381,7 +428,7 @@ export interface RenderSettings {
   lightConfigs: Record<string, { radius: number; intensity: number }>;
 }
 
-export type ThemeName = "default" | "colorblind";
+export type ThemeName = (typeof PALETTE_NAMES)[number];
 
 // Typed so tsc validates each theme JSON against the ThemeSettings shape.
 const THEMES: Record<ThemeName, ThemeSettings> = {

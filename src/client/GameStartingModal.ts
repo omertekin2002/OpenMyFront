@@ -27,7 +27,7 @@ export class GameStartingModal extends LitElement {
         <div
           class="text-base font-medium tracking-wider uppercase text-white/40 mb-3"
         >
-          © OpenMyFront and Contributors
+          ${translateText("main.copyright")}
         </div>
         <p class="text-base text-white/40 mb-4">
           ${translateText("game_starting_modal.code_license")}

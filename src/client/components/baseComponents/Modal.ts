@@ -1,5 +1,5 @@
-import { LitElement, html } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { LitElement, PropertyValues, html } from "lit";
+import { customElement, property, query, state } from "lit/decorators.js";
 import { documentStylesSheet } from "./SharedStyles";
 
 export type OModalTab = { key: string; label: string };
@@ -9,6 +9,8 @@ export class OModal extends LitElement {
   static styles = [documentStylesSheet()];
 
   @state() public isModalOpen = false;
+
+  @query("[data-modal-scroll]") private scrollContainer?: HTMLElement;
 
   static openCount = 0;
 
@@ -62,6 +64,37 @@ export class OModal extends LitElement {
     }
   }
 
+  protected updated(changed: PropertyValues<this>): void {
+    super.updated(changed);
+    // A tab opened directly (a link, the last tab used) may sit past the edge
+    // of a scrolled tab row: scroll the row, and only the row, to it.
+    // scrollIntoView would also scroll the modal's content and the page.
+    if (!changed.has("activeTab") || !this.activeTab) return;
+    const row = this.renderRoot.querySelector<HTMLElement>('[role="tablist"]');
+    if (row === null || row.scrollWidth <= row.clientWidth) return;
+    const tab = [...row.querySelectorAll<HTMLElement>('[role="tab"]')].find(
+      (t) => t.dataset.key === this.activeTab,
+    );
+    if (tab === undefined) return;
+    const rowBox = row.getBoundingClientRect();
+    const tabBox = tab.getBoundingClientRect();
+    if (tabBox.left < rowBox.left) {
+      row.scrollLeft += tabBox.left - rowBox.left;
+    } else if (tabBox.right > rowBox.right) {
+      row.scrollLeft += tabBox.right - rowBox.right;
+    }
+  }
+
+  public getScrollTop(): number {
+    return this.scrollContainer?.scrollTop ?? 0;
+  }
+
+  public setScrollTop(scrollTop: number): void {
+    if (this.scrollContainer) {
+      this.scrollContainer.scrollTop = scrollTop;
+    }
+  }
+
   disconnectedCallback() {
     // Ensure global counter is decremented if this modal is removed while open.
     if (this.isModalOpen && !this.inline) {
@@ -76,10 +109,17 @@ export class OModal extends LitElement {
   }
 
   private renderTabs() {
+    // One row that scrolls sideways when the tabs don't fit, instead of
+    // wrapping onto a second row. The auto margins on the first and last tab
+    // centre the row when it fits, and unlike justify-center they never push
+    // a tab off the left edge out of reach. Below sm the tabs are compact
+    // (smaller, less tracked, less padded labels, still 40px tall) so five
+    // fit across a 360px phone; the scroll is left for narrower screens and
+    // longer rows.
     return html`
       <div
         role="tablist"
-        class="flex justify-center border-b border-white/10 px-4 lg:px-6 gap-1 shrink-0"
+        class="flex flex-nowrap overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>button:first-of-type]:ms-auto [&>button:last-of-type]:me-auto border-b border-white/10 px-2 sm:px-4 lg:px-6 sm:gap-1 shrink-0"
       >
         ${this.tabs.map((tab) => {
           const active = this.activeTab === tab.key;
@@ -89,7 +129,7 @@ export class OModal extends LitElement {
               role="tab"
               data-key=${tab.key}
               aria-selected=${active}
-              class="px-4 py-3 text-sm font-bold uppercase tracking-wider transition-all relative cursor-pointer ${active
+              class="shrink-0 whitespace-nowrap min-h-10 px-2 py-3 text-[11px] leading-4 tracking-wide sm:px-4 sm:text-sm sm:leading-5 sm:tracking-wider font-bold uppercase transition-all relative cursor-pointer ${active
                 ? "text-aquarius"
                 : "text-white/40 hover:text-white/70"}"
               @click=${() => this.handleTabClick(tab.key)}
@@ -119,7 +159,7 @@ export class OModal extends LitElement {
 
     const wrapperClass = this.inline
       ? "relative flex flex-col w-full h-full m-0 max-w-full max-h-none shadow-none"
-      : `relative flex flex-col w-full h-full lg:w-[90%] lg:h-auto lg:min-w-[400px] lg:max-w-[900px] lg:m-8 lg:rounded-lg shadow-[0_20px_60px_rgba(0,0,0,0.8)] lg:max-h-[calc(100vh-4rem)] ${
+      : `relative flex flex-col w-full h-full lg:w-[90%] lg:h-auto lg:min-w-[400px] lg:max-w-[900px] lg:m-8 lg:rounded-lg lg:max-h-[calc(100vh-4rem)] ${
           this.alwaysMaximized ? "h-auto" : ""
         }`;
     const wrapperStyle =
@@ -157,7 +197,7 @@ export class OModal extends LitElement {
           <section class="${sectionClass}">
             <slot name="header"></slot>
             ${hasTabs ? this.renderTabs() : html``}
-            <div class="flex-1 min-h-0 overflow-y-auto">
+            <div data-modal-scroll class="flex-1 min-h-0 overflow-y-auto">
               <slot></slot>
             </div>
           </section>

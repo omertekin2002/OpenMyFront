@@ -1,12 +1,18 @@
-import { html, LitElement, TemplateResult } from "lit";
+import { assetUrl } from "@openfront/shared/AssetUrls";
+import { html, LitElement } from "lit";
 import { customElement } from "lit/decorators.js";
-import { assetUrl } from "../../core/AssetUrls";
-import { NavNotificationsController } from "./NavNotificationsController";
+
+const MOBILE_ITEM =
+  "nav-menu-item block w-full text-left font-bold uppercase tracking-[0.05em] " +
+  "text-white/70 transition-all duration-200 cursor-pointer " +
+  "hover:text-blue-600 hover:translate-x-2.5 " +
+  "hover:drop-shadow-[0_0_20px_rgba(37,99,235,0.5)] " +
+  "[&.active]:text-blue-600 [&.active]:translate-x-2.5 " +
+  "[&.active]:drop-shadow-[0_0_20px_rgba(37,99,235,0.5)] " +
+  "text-[clamp(18px,2.8vh,32px)] py-[clamp(0.2rem,0.8vh,0.75rem)]";
 
 @customElement("mobile-nav-bar")
 export class MobileNavBar extends LitElement {
-  private _notifications = new NavNotificationsController(this);
-
   createRenderRoot() {
     return this;
   }
@@ -46,13 +52,6 @@ export class MobileNavBar extends LitElement {
     });
   }
 
-  private _renderDot(color: string): TemplateResult {
-    return html`<span class="relative ml-2 shrink-0 -mt-2 w-2 h-2">
-      <span class="absolute inset-0 ${color} rounded-full animate-ping"></span>
-      <span class="absolute inset-0 ${color} rounded-full"></span>
-    </span>`;
-  }
-
   render() {
     window.currentPageId ??= "page-play";
     const currentPage = window.currentPageId;
@@ -83,33 +82,19 @@ export class MobileNavBar extends LitElement {
             />
           </div>
         </div>
-        <!-- Mobile Navigation Menu Items -->
+        <!-- Mobile Navigation Menu Items (same order as the desktop bar) -->
         <button
-          class="nav-menu-item block w-full text-left font-bold uppercase tracking-[0.05em] text-white/70 transition-all duration-200 cursor-pointer hover:text-blue-600 hover:translate-x-2.5 hover:drop-shadow-[0_0_20px_rgba(37,99,235,0.5)] text-[clamp(18px,2.8vh,32px)] py-[clamp(0.2rem,0.8vh,0.75rem)] [&.active]:text-blue-600 [&.active]:translate-x-2.5 [&.active]:drop-shadow-[0_0_20px_rgba(37,99,235,0.5)] ${currentPage ===
-          "page-play"
-            ? "active"
-            : ""}"
+          class="${MOBILE_ITEM} ${currentPage === "page-play" ? "active" : ""}"
           data-page="page-play"
           data-i18n="main.play"
         ></button>
         <button
-          class="nav-menu-item block w-full text-left font-bold uppercase tracking-[0.05em] text-white/70 transition-all duration-200 cursor-pointer hover:text-blue-600 hover:translate-x-2.5 hover:drop-shadow-[0_0_20px_rgba(37,99,235,0.5)] [&.active]:text-blue-600 [&.active]:translate-x-2.5 [&.active]:drop-shadow-[0_0_20px_rgba(37,99,235,0.5)] text-[clamp(18px,2.8vh,32px)] py-[clamp(0.2rem,0.8vh,0.75rem)]"
-          data-page="page-settings"
-          data-i18n="main.settings"
+          class="${MOBILE_ITEM} ${currentPage === "page-inventory"
+            ? "active"
+            : ""}"
+          data-page="page-inventory"
+          data-i18n="main.inventory"
         ></button>
-        <div
-          class="nav-menu-item flex items-center w-full cursor-pointer"
-          data-page="page-help"
-          @click=${this._notifications.onHelpClick}
-        >
-          <button
-            class="block text-left font-bold uppercase tracking-[0.05em] text-white/70 transition-all duration-200 cursor-pointer hover:text-blue-600 hover:translate-x-2.5 hover:drop-shadow-[0_0_20px_rgba(37,99,235,0.5)] [&.active]:text-blue-600 [&.active]:translate-x-2.5 [&.active]:drop-shadow-[0_0_20px_rgba(37,99,235,0.5)] text-[clamp(18px,2.8vh,32px)] py-[clamp(0.2rem,0.8vh,0.75rem)]"
-            data-i18n="main.help"
-          ></button>
-          ${this._notifications.showHelpDot()
-            ? this._renderDot("bg-yellow-400")
-            : ""}
-        </div>
         <div
           class="flex flex-col w-full mt-auto [.in-game_&]:hidden items-end justify-end pt-4 border-t border-white/10"
         ></div>

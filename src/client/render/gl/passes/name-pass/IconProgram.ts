@@ -6,21 +6,20 @@
  * The shared playerDataTex is also passed in but not owned/deleted.
  */
 
+import { assetUrl } from "@openfront/shared/AssetUrls";
 import emojiAtlasMeta from "resources/atlases/emoji-atlas-meta.json";
-import { assetUrl } from "src/core/AssetUrls";
 import type { RenderSettings } from "../../RenderSettings";
 import iconFragSrc from "../../shaders/name/icon.frag.glsl?raw";
 import iconVertSrc from "../../shaders/name/icon.vert.glsl?raw";
 import { createProgram } from "../../utils/GlUtils";
 import type { FlagAtlasArray } from "./FlagAtlasArray";
+import { FLAG_CELL_H, FLAG_CELL_W } from "./FlagAtlasArray";
 import type { ParsedAtlas } from "./Types";
 
 const emojiAtlasUrl = assetUrl("atlases/emoji-atlas.png");
 
-// Must match FLAG_CELL_W / FLAG_CELL_H in FlagAtlasArray.ts. Used only for
-// world-space aspect ratio of the flag quad.
-const FLAG_CELL_W = 128;
-const FLAG_CELL_H = 85;
+/** Icon instances per player: flag, emoji (must match icon.vert.glsl). */
+const ICONS_PER_PLAYER = 2;
 
 export class IconProgram {
   private gl: WebGL2RenderingContext;
@@ -42,6 +41,7 @@ export class IconProgram {
   private uEmojiRowOffset: WebGLUniformLocation;
   private uFadeOwnerID: WebGLUniformLocation;
   private uHoverFadeAlpha: WebGLUniformLocation;
+  private uFlagAlpha: WebGLUniformLocation;
 
   constructor(
     gl: WebGL2RenderingContext,
@@ -55,7 +55,7 @@ export class IconProgram {
     this.flagAtlas = flagAtlas;
     this.maxPlayers = maxPlayers;
 
-    this.program = createProgram(gl, iconVertSrc, iconFragSrc);
+    this.program = createProgram(gl, iconVertSrc, iconFragSrc, "IconProgram");
     gl.useProgram(this.program);
 
     // Texture unit bindings
@@ -114,6 +114,7 @@ export class IconProgram {
       this.program,
       "uHoverFadeAlpha",
     )!;
+    this.uFlagAlpha = gl.getUniformLocation(this.program, "uFlagAlpha")!;
 
     this.loadEmojiAtlas();
   }
@@ -166,6 +167,7 @@ export class IconProgram {
     gl.uniform1f(this.uEmojiRowOffset, ns.emojiRowOffset);
     gl.uniform1f(this.uFadeOwnerID, fadeOwnerID);
     gl.uniform1f(this.uHoverFadeAlpha, ns.hoverFadeAlpha);
+    gl.uniform1f(this.uFlagAlpha, ns.flagAlpha);
 
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.playerDataTex);
@@ -175,7 +177,12 @@ export class IconProgram {
     gl.bindTexture(gl.TEXTURE_2D, this.emojiAtlasTex!);
 
     gl.bindVertexArray(vao);
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.maxPlayers * 2);
+    gl.drawArraysInstanced(
+      gl.TRIANGLES,
+      0,
+      6,
+      this.maxPlayers * ICONS_PER_PLAYER,
+    );
   }
 
   dispose(): void {

@@ -33,6 +33,7 @@ export default [
             "__mocks__/fileMock.js",
             "eslint.config.js",
             "scripts/sync-assets.mjs",
+            "tests/matchmaking/*.mjs",
           ],
         },
         tsconfigRootDir: import.meta.dirname,
@@ -44,6 +45,55 @@ export default [
       // Disable rules that would fail. The failures should be fixed, and the entries here removed.
       "@typescript-eslint/no-explicit-any": "off",
       "no-unused-vars": "off",
+    },
+  },
+  {
+    // The simulation must be bit-identical on every client. Math.exp & co.
+    // are only "implementation approximated" by the spec; use DetMath.
+    files: [
+      "packages/engine/src/**/*.ts",
+      "packages/engine-api/src/**/*.ts",
+      "packages/engine-lib/src/**/*.ts",
+    ],
+    ignores: ["packages/engine-lib/src/DetMath.ts"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        ...[
+          "exp",
+          "expm1",
+          "log",
+          "log1p",
+          "log2",
+          "log10",
+          "pow",
+          "sin",
+          "cos",
+          "tan",
+          "asin",
+          "acos",
+          "atan",
+          "atan2",
+          "sinh",
+          "cosh",
+          "tanh",
+          "cbrt",
+          "hypot",
+        ].map((property) => ({
+          object: "Math",
+          property,
+          message: `Math.${property} differs between JS engines; use packages/engine-lib/src/DetMath.ts to keep the simulation deterministic.`,
+        })),
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "BinaryExpression[operator='**']:not([right.type='Literal'][right.value=2])",
+          message:
+            "`**` with a non-2 exponent differs between JS engines; use packages/engine-lib/src/DetMath.ts to keep the simulation deterministic.",
+        },
+      ],
     },
   },
   {

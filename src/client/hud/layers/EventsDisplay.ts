@@ -1,9 +1,4 @@
-import { html, LitElement } from "lit";
-import { customElement, query, state } from "lit/decorators.js";
-import { DirectiveResult } from "lit/directive.js";
-import { unsafeHTML, UnsafeHTMLDirective } from "lit/directives/unsafe-html.js";
-import { EventBus } from "../../../core/EventBus";
-import { AllPlayers, MessageType } from "../../../core/game/Game";
+import { AllPlayers, MessageType } from "@openfront/engine-api/game/GameTypes";
 import {
   AllianceExpiredUpdate,
   AllianceRequestReplyUpdate,
@@ -15,28 +10,32 @@ import {
   GameUpdateType,
   TargetPlayerUpdate,
   UnitIncomingUpdate,
-} from "../../../core/game/GameUpdates";
+} from "@openfront/engine-api/game/GameUpdates";
+import { EventBus } from "@openfront/shared/EventBus";
+import { html, LitElement } from "lit";
+import { customElement, query, state } from "lit/decorators.js";
+import { DirectiveResult } from "lit/directive.js";
+import { unsafeHTML, UnsafeHTMLDirective } from "lit/directives/unsafe-html.js";
 import { Controller } from "../../Controller";
 import { SendAllianceRequestIntentEvent } from "../../Transport";
+import { UserSettings } from "../../UserSettings";
 
-import { onlyImages } from "../../../core/Util";
 import { GoToPlayerEvent, GoToUnitEvent } from "../../TransformHandler";
 import { GameView, PlayerView, UnitView } from "../../view";
+import { onlyImages } from "./OnlyImages";
 
+import { renderNumber, renderTroops } from "@openfront/engine-lib/Format";
 import { PlaySoundEffectEvent } from "../../sound/Sounds";
 import { UIState } from "../../UIState";
-import {
-  getMessageTypeClasses,
-  renderNumber,
-  renderTroops,
-  translateText,
-} from "../../Utils";
+import { getMessageTypeClasses, translateText } from "../../Utils";
 
 interface GameEvent {
   description: string;
   unsafeDescription?: boolean;
   type: MessageType;
   highlight?: boolean;
+  /** Show in the small feed even if the type is normally tier 1. */
+  minor?: boolean;
   createdAt: number;
   onDelete?: () => void;
   focusID?: number;
@@ -51,7 +50,9 @@ const TIER_1_TYPES: ReadonlySet<MessageType> = new Set([
   MessageType.NAVAL_INVASION_INBOUND,
   MessageType.ATTACK_REQUEST,
   MessageType.ALLIANCE_ACCEPTED,
+  MessageType.ALLIANCE_REJECTED,
   MessageType.ALLIANCE_BROKEN,
+  MessageType.RENEW_ALLIANCE,
   MessageType.CONQUERED_PLAYER,
   MessageType.CHAT,
   MessageType.DONATION_RECEIVED,
@@ -67,6 +68,7 @@ export class EventsDisplay extends LitElement implements Controller {
 
   private active: boolean = false;
   private events: GameEvent[] = [];
+  private userSettings = new UserSettings();
 
   @state() private _isVisible: boolean = false;
 
@@ -74,15 +76,23 @@ export class EventsDisplay extends LitElement implements Controller {
   private _eventsContainer?: HTMLDivElement;
   private _shouldScrollToBottom = true;
 
+  @query(".important-events-container")
+  private _importantEventsContainer?: HTMLDivElement;
+  private _shouldScrollImportantToBottom = true;
+
   updated(changed: Map<string, unknown>) {
     super.updated(changed);
     if (this._eventsContainer && this._shouldScrollToBottom) {
       this._eventsContainer.scrollTop = this._eventsContainer.scrollHeight;
     }
+    if (this._importantEventsContainer && this._shouldScrollImportantToBottom) {
+      this._importantEventsContainer.scrollTop =
+        this._importantEventsContainer.scrollHeight;
+    }
   }
 
   private renderButton(options: {
-    content: any; // Can be string, TemplateResult, or other renderable content
+    content: unknown;
     onClick?: () => void;
     className?: string;
     disabled?: boolean;
@@ -97,11 +107,9 @@ export class EventsDisplay extends LitElement implements Controller {
       translate = true,
       hidden = false,
     } = options;
-
     if (hidden) {
       return html``;
     }
-
     return html`
       <button
         class="${className}"
@@ -154,7 +162,7 @@ export class EventsDisplay extends LitElement implements Controller {
     }
     this.addEvent({
       description: translateText("events_display.alliance_request_sent", {
-        name: e.recipient.name(),
+        name: e.recipient.displayName(),
       }),
       type: MessageType.ALLIANCE_REQUEST,
       createdAt: this.game.ticks(),
@@ -170,6 +178,14 @@ export class EventsDisplay extends LitElement implements Controller {
         el.scrollHeight - el.scrollTop - el.clientHeight < 5;
     } else {
       this._shouldScrollToBottom = true;
+    }
+
+    if (this._importantEventsContainer) {
+      const el = this._importantEventsContainer;
+      this._shouldScrollImportantToBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight < 5;
+    } else {
+      this._shouldScrollImportantToBottom = true;
     }
 
     if (!this._isVisible && !this.game.inSpawnPhase()) {
@@ -194,7 +210,10 @@ export class EventsDisplay extends LitElement implements Controller {
     }
 
     let remainingEvents = this.events.filter((event) => {
-      const expired = this.game.ticks() - event.createdAt >= 80;
+      const age = this.game.ticks() - event.createdAt;
+      // A negative age is an event from later in the game: the replay
+      // viewer seeked back past it.
+      const expired = age >= 80 || age < 0;
       const isInboundWarning =
         event.type === MessageType.NUKE_INBOUND ||
         event.type === MessageType.HYDROGEN_BOMB_INBOUND ||
@@ -228,6 +247,36 @@ export class EventsDisplay extends LitElement implements Controller {
     this.requestUpdate();
   }
 
+  // The core simulation runs identically for every client and has no notion
+  // of Anonymous Names, so a params.name value it bakes into a DisplayEvent
+  // is always the subject's real name. When the message identifies that
+  // subject via focusPlayerID, re-resolve the name through this viewer's own
+  // PlayerView instead, which already respects the local Anonymous Names
+  // setting - otherwise a message like "X conquered you" leaks X's real name
+  // even when this viewer has Anonymous Names turned on.
+  private resolveParams(
+    event: DisplayMessageUpdate,
+  ): Record<string, string | number> {
+    let params = event.params ?? {};
+    if (
+      (event.message === "events_display.missile_intercepted" ||
+        event.message === "events_display.unit_destroyed") &&
+      typeof params.unit === "string" &&
+      params.unit.startsWith("unit_type.")
+    ) {
+      params = { ...params, unit: translateText(params.unit) };
+    }
+
+    if (params.name === undefined || event.focusPlayerID === undefined) {
+      return params;
+    }
+    const subject = this.game.playerBySmallID(event.focusPlayerID);
+    if (!subject.isPlayer()) {
+      return params;
+    }
+    return { ...params, name: subject.displayName() };
+  }
+
   onDisplayMessageEvent(event: DisplayMessageUpdate) {
     const myPlayer = this.game.myPlayer();
     if (
@@ -245,7 +294,7 @@ export class EventsDisplay extends LitElement implements Controller {
 
     let description: string = event.message;
     if (event.message.startsWith("events_display.")) {
-      description = translateText(event.message, event.params ?? {});
+      description = translateText(event.message, this.resolveParams(event));
     }
 
     const unitView =
@@ -288,23 +337,32 @@ export class EventsDisplay extends LitElement implements Controller {
     }
 
     let otherPlayerDiplayName: string = "";
+    let otherPlayerSmallID: number | undefined;
     if (event.recipient !== null) {
       //'recipient' parameter contains sender ID or recipient ID
       const player = this.game.player(event.recipient);
       otherPlayerDiplayName = player ? player.displayName() : "";
+      otherPlayerSmallID = player?.smallID();
     }
 
+    // A message I sent is only a confirmation, like a sent emoji: it goes to
+    // the small feed, quietly.
+    const sent = !event.isFrom;
     this.addEvent({
-      description: translateText(event.isFrom ? "chat.from" : "chat.to", {
+      description: translateText(sent ? "chat.to" : "chat.from", {
         user: otherPlayerDiplayName,
         msg: translatedMessage,
       }),
       createdAt: this.game.ticks(),
-      highlight: true,
+      highlight: !sent,
+      minor: sent,
       type: MessageType.CHAT,
       unsafeDescription: false,
+      focusID: otherPlayerSmallID,
     });
-    this.eventBus.emit(new PlaySoundEffectEvent("message"));
+    if (!sent) {
+      this.eventBus.emit(new PlaySoundEffectEvent("message"));
+    }
   }
 
   onAllianceRequestReplyEvent(update: AllianceRequestReplyUpdate) {
@@ -330,6 +388,11 @@ export class EventsDisplay extends LitElement implements Controller {
       createdAt: this.game.ticks(),
       focusID: update.request.recipientID,
     });
+    this.eventBus.emit(
+      new PlaySoundEffectEvent(
+        update.accepted ? "alliance-accepted" : "alliance-declined",
+      ),
+    );
   }
 
   onBrokeAllianceEvent(update: BrokeAllianceUpdate) {
@@ -487,6 +550,10 @@ export class EventsDisplay extends LitElement implements Controller {
     ) as PlayerView;
 
     if (recipient === myPlayer) {
+      // Honor the "Disable emojis" setting: don't surface received emojis in
+      // the events feed either (#4430). Confirmations of emojis you sent
+      // still show, since the setting doesn't stop you sending them.
+      if (!this.userSettings.emojis()) return;
       this.addEvent({
         description: `${sender.displayName()}: ${update.emoji.message}`,
         unsafeDescription: true,
@@ -503,9 +570,19 @@ export class EventsDisplay extends LitElement implements Controller {
         }),
         unsafeDescription: true,
         type: MessageType.CHAT,
-        highlight: true,
+        minor: true,
         createdAt: this.game.ticks(),
         focusID: recipient.smallID(),
+      });
+    } else if (sender === myPlayer) {
+      this.addEvent({
+        description: translateText("events_display.sent_emoji_all", {
+          emoji: update.emoji.message,
+        }),
+        unsafeDescription: true,
+        type: MessageType.CHAT,
+        minor: true,
+        createdAt: this.game.ticks(),
       });
     }
   }
@@ -518,9 +595,19 @@ export class EventsDisplay extends LitElement implements Controller {
     }
 
     const unitView = this.game.unit(event.unitID);
+    let description = event.message;
+    if (event.message.startsWith("events_display.") && unitView) {
+      const params: Record<string, string | number> = {
+        name: unitView.owner().displayName(),
+      };
+      if (event.messageType === MessageType.NAVAL_INVASION_INBOUND) {
+        params.troops = renderTroops(unitView.troops());
+      }
+      description = translateText(event.message, params);
+    }
 
     this.addEvent({
-      description: event.message,
+      description: description,
       type: event.messageType,
       unsafeDescription: false,
       highlight: true,
@@ -606,7 +693,9 @@ export class EventsDisplay extends LitElement implements Controller {
     const tier1Events: GameEvent[] = [];
     let tier2Events: GameEvent[] = [];
     for (const event of this.events) {
-      (isTier1(event.type) ? tier1Events : tier2Events).push(event);
+      (isTier1(event.type) && !event.minor ? tier1Events : tier2Events).push(
+        event,
+      );
     }
     tier1Events.sort((a, b) => a.createdAt - b.createdAt);
     tier2Events.sort((a, b) => a.createdAt - b.createdAt);
@@ -640,7 +729,7 @@ export class EventsDisplay extends LitElement implements Controller {
         ${tier1Events.length > 0 || showBetrayalTimer
           ? html`
               <div
-                class="bg-gray-800 backdrop-blur-sm rounded-lg shadow-lg border-l-4 border-red-500"
+                class="bg-gray-800 backdrop-blur-sm max-h-[30vh] lg:max-h-[40vh] overflow-y-auto rounded-lg shadow-lg border-l-4 border-red-500 important-events-container"
               >
                 <table
                   class="w-full border-collapse text-white text-base lg:text-lg font-medium pointer-events-auto"

@@ -2,7 +2,7 @@ import { LitElement, TemplateResult, html, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { translateText } from "../../Utils";
 
-type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
+type ButtonVariant = "primary" | "secondary" | "danger" | "warning" | "ghost";
 type ButtonSize = "xs" | "sm" | "md" | "lg";
 type ButtonWidth = "auto" | "block" | "blockDesktop" | "fill";
 type IconPosition = "left" | "right" | "only";
@@ -18,13 +18,14 @@ export class OButton extends LitElement {
   @property({ attribute: false }) icon?: TemplateResult;
   @property({ type: Boolean }) disable = false;
   @property({ type: Boolean }) submit = false;
+  @property({ type: Boolean }) uppercase = true;
 
   createRenderRoot() {
     return this;
   }
 
   private readonly BASE =
-    "font-bold uppercase tracking-wider rounded-xl border border-transparent " +
+    "font-bold tracking-wider rounded-xl border border-transparent " +
     "transition-all duration-300 transform hover:-translate-y-px " +
     "outline-none text-center whitespace-normal break-words leading-tight overflow-hidden relative " +
     "disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:opacity-70";
@@ -37,6 +38,8 @@ export class OButton extends LitElement {
         return "bg-gray-700 hover:bg-gray-600 text-white disabled:bg-gray-800 disabled:text-gray-400";
       case "danger":
         return "bg-red-600 hover:bg-red-500 text-white disabled:bg-red-900 disabled:text-gray-300";
+      case "warning":
+        return "bg-cyber-yellow hover:brightness-110 text-gray-900 disabled:bg-yellow-900 disabled:text-gray-300";
       case "ghost":
         return "bg-transparent hover:bg-white/10 text-malibu-blue disabled:text-gray-500 disabled:hover:bg-transparent";
     }
@@ -86,7 +89,8 @@ export class OButton extends LitElement {
         ? this.title
         : translateText(this.translationKey);
     const iconOnly = this.iconPosition === "only";
-    const classes = `${this.BASE} ${this.variantClasses()} ${this.sizeClasses()} ${this.widthClasses()}`;
+    const casing = this.uppercase ? "uppercase" : "normal-case";
+    const classes = `${this.BASE} ${casing} ${this.variantClasses()} ${this.sizeClasses()} ${this.widthClasses()}`;
 
     return html`
       <button

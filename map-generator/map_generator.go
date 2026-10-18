@@ -9,7 +9,7 @@ import (
 	"image/png"
 	"math"
 
-	"github.com/chai2010/webp"
+	"github.com/gen2brain/webp"
 )
 
 const (
@@ -42,6 +42,7 @@ type TerrainType uint8
 const (
 	Land TerrainType = iota
 	Water
+	Impassable
 )
 
 // Terrain represents the properties of a single map tile.
@@ -90,15 +91,20 @@ type GeneratorArgs struct {
 // For Water tiles, "Magnitude" is calculated during generation as the distance to the nearest land.
 //
 // Pixel -> Terrain & Magnitude mapping
-// | Input Condition    | Terrain Type    | Magnitude          | Notes                            |
-// | :----------------- | :-------------- | :----------------- | :------------------------------- |
-// | **Alpha < 20**     | Water           | Distance to Land\* | Transparent pixels become water. |
-// | **Blue = 106**     | Water           | Distance to Land\* | Specific key color for water.    |
-// | **Blue < 140**     | Land (Plains)   | 0                  | Clamped to minimum magnitude.    |
-// | **Blue 140 - 158** | Land (Plains)   | 0 - 9              | 					 					 					 		|
-// | **Blue 159 - 178** | Land (Highland) | 10 - 19            | 					 					 					 		|
-// | **Blue 179 - 200** | Land (Mountain) | 20 - 30            | 				 					 					 			|
-// | **Blue > 200**     | Land (Mountain) | 30                 | Clamped to maximum magnitude.    |
+// | Input Condition    | Terrain Type     | Magnitude          | Notes                            |
+// | :----------------- | :--------------- | :----------------- | :------------------------------- |
+// | **Alpha < 20**     | Water            | Distance to Land\* | Transparent pixels become water. |
+// | **Blue = 106**     | Water            | Distance to Land\* | Specific key color for water.    |
+// | **#000 (black)**   | Impassable       | 31 (fixed)         | Solid void; cannot be owned/attacked/nuked. |
+// | **Blue < 140**     | Land (Plains)    | 0                  | Clamped to minimum magnitude.    |
+// | **Blue 140 - 158** | Land (Plains)    | 0 - 9              | 					 					 					 		|
+// | **Blue 159 - 178** | Land (Highland)  | 10 - 19            | 					 					 					 		|
+// | **Blue 179 - 200** | Land (Mountain)  | 20 - 30            | 				 					 					 			|
+// | **Blue > 200**     | Land (Mountain)  | 30                 | Clamped to maximum magnitude.    |
+//
+// Impassable terrain is encoded in the binary format as isLand=1 + magnitude=31.
+// It renders as the map background colour (making the map appear non-rectangular)
+// and cannot be owned, attacked, or nuked. Nuke trajectories cannot cross it.
 //
 // Misc Notes
 //   - It normalizes map width/height to multiples of 4 for the mini map downscaling.
@@ -132,14 +138,19 @@ func GenerateMap(ctx context.Context, args GeneratorArgs) (MapResult, error) {
 	// Process each pixel
 	for x := 0; x < width; x++ {
 		for y := 0; y < height; y++ {
-			_, _, b, a := img.At(x, y).RGBA()
+			r, g, b, a := img.At(x, y).RGBA()
 			// Convert from 16-bit to 8-bit values
-			alpha := uint8(a >> 8)
+			red := uint8(r >> 8)
+			green := uint8(g >> 8)
 			blue := uint8(b >> 8)
+			alpha := uint8(a >> 8)
 
 			if alpha < 20 || blue == 106 {
 				// Transparent or specific blue value = water
 				terrain[x][y] = Terrain{Type: Water}
+			} else if red == 0 && green == 0 && blue == 0 {
+				// Pure black (#000) = impassable terrain
+				terrain[x][y] = Terrain{Type: Impassable}
 			} else {
 				// Land
 				terrain[x][y] = Terrain{Type: Land}
@@ -156,13 +167,19 @@ func GenerateMap(ctx context.Context, args GeneratorArgs) (MapResult, error) {
 
 	removeSmallIslands(ctx, terrain, minIslandSize, args.RemoveSmall)
 	processWater(ctx, terrain, args.RemoveSmall)
+	// Water adjacent to impassable terrain should be deep (no depth gradient),
+	// just like water at the map edge.  Override the BFS-calculated magnitude
+	// so these tiles render as the deepest shade.
+	setImpassableNeighborWaterDepth(ctx, terrain)
 
 	terrain4x := createMiniMap(terrain)
 	removeSmallIslands(ctx, terrain4x, minIslandSize/2, args.RemoveSmall)
 	processWater(ctx, terrain4x, false)
+	setImpassableNeighborWaterDepth(ctx, terrain4x)
 
 	terrain16x := createMiniMap(terrain4x)
 	processWater(ctx, terrain16x, false)
+	setImpassableNeighborWaterDepth(ctx, terrain16x)
 
 	thumb := createMapThumbnail(ctx, terrain4x, 0.5)
 	webp, err := convertToWebP(ThumbData{
@@ -229,18 +246,23 @@ func convertToWebP(thumb ThumbData) ([]byte, error) {
 	copy(img.Pix, thumb.Data)
 
 	// Encode as WebP with quality 45 (equivalent to the JavaScript version)
-	webpData, err := webp.EncodeRGBA(img, 45)
+	var webpData bytes.Buffer
+	err := webp.Encode(&webpData, img, webp.Options{
+		Quality: 45,
+		Method:  4,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode WebP: %w", err)
 	}
 
-	return webpData, nil
+	return webpData.Bytes(), nil
 }
 
 // createMiniMap downscales the terrain grid by half.
 // It maps 2x2 blocks of input tiles to a single output tile.
-// The logic prioritizes Water: if any of the 4 source tiles is Water,
-// the resulting mini-map tile becomes Water.
+// Priority: Water > Impassable > Land. Water always wins so that narrow
+// rivers inside or bordering impassable terrain are preserved on the minimap
+// (the pathfinder runs on the minimap and needs accurate water bodies).
 func createMiniMap(tm [][]Terrain) [][]Terrain {
 	width := len(tm)
 	height := len(tm[0])
@@ -258,12 +280,29 @@ func createMiniMap(tm [][]Terrain) [][]Terrain {
 			miniX := x / 2
 			miniY := y / 2
 
-			if miniX < miniWidth && miniY < miniHeight {
-				// If any of the 4 tiles has water, mini tile is water
-				if miniMap[miniX][miniY].Type != Water {
-					miniMap[miniX][miniY] = tm[x][y]
-				}
+			if miniX >= miniWidth || miniY >= miniHeight {
+				continue
 			}
+			src := tm[x][y]
+			dst := &miniMap[miniX][miniY]
+			// Water wins over everything — narrow rivers must be preserved
+			// for pathfinding accuracy.
+			if dst.Type == Water {
+				continue
+			}
+			if src.Type == Water {
+				*dst = src
+				continue
+			}
+			// Impassable wins over land; once set, keep it.
+			if dst.Type == Impassable {
+				continue
+			}
+			if src.Type == Impassable {
+				*dst = src
+				continue
+			}
+			*dst = src
 		}
 	}
 
@@ -296,7 +335,7 @@ func processShore(ctx context.Context, terrain [][]Terrain) []Coord {
 						break
 					}
 				}
-			} else {
+			} else if tile.Type == Water {
 				// Water tile adjacent to land is shoreline
 				for _, c := range buf[:n] {
 					if terrain[c.X][c.Y].Type == Land {
@@ -306,6 +345,7 @@ func processShore(ctx context.Context, terrain [][]Terrain) []Coord {
 					}
 				}
 			}
+			// Impassable tiles: never shoreline (renders as background, no outline)
 		}
 	}
 
@@ -356,6 +396,33 @@ func processDistToLand(ctx context.Context, shorelineWaters []Coord, terrain [][
 				visited[nx][ny] = true
 				terrain[nx][ny].Magnitude = float64(current.dist + 1)
 				queue = append(queue, queueItem{x: nx, y: ny, dist: current.dist + 1})
+			}
+		}
+	}
+}
+
+// setImpassableNeighborWaterDepth forces water tiles adjacent to impassable
+// terrain to deep-water magnitude.  Without this, the processDistToLand BFS
+// assigns them a shallow magnitude (close to "land"), producing a visible
+// depth gradient next to impassable terrain.  Impassable terrain is void —
+// like the map edge — so the water beside it should be uniformly deep.
+func setImpassableNeighborWaterDepth(ctx context.Context, terrain [][]Terrain) {
+	width := len(terrain)
+	height := len(terrain[0])
+	const deepMagnitude = 20 // packed as 10 (÷2), matches max render depth
+
+	var buf [4]Coord
+	for x := 0; x < width; x++ {
+		for y := 0; y < height; y++ {
+			if terrain[x][y].Type != Water {
+				continue
+			}
+			n := neighborCoords(x, y, width, height, &buf)
+			for _, c := range buf[:n] {
+				if terrain[c.X][c.Y].Type == Impassable {
+					terrain[x][y].Magnitude = deepMagnitude
+					break
+				}
 			}
 		}
 	}
@@ -453,10 +520,11 @@ func processWater(ctx context.Context, terrain [][]Terrain, removeSmall bool) {
 			logger.Info("Searching for small water bodies for removal")
 			for w := 1; w < len(waterBodies); w++ {
 				if waterBodies[w].size < minLakeSize {
-					logger.Debug(fmt.Sprintf("Removing small lake at %d,%d (size %d)", waterBodies[w].coords[0].X, waterBodies[w].coords[0].Y, waterBodies[w].size), RemovalLogTag)
+					replacement := majorityNeighborType(waterBodies[w].coords, terrain, Water)
+					logger.Debug(fmt.Sprintf("Removing small lake at %d,%d (size %d) -> %v", waterBodies[w].coords[0].X, waterBodies[w].coords[0].Y, waterBodies[w].size, replacement), RemovalLogTag)
 					smallLakes++
 					for _, coord := range waterBodies[w].coords {
-						terrain[coord.X][coord.Y].Type = Land
+						terrain[coord.X][coord.Y].Type = replacement
 						terrain[coord.X][coord.Y].Magnitude = 0
 					}
 				}
@@ -546,10 +614,11 @@ func removeSmallIslands(ctx context.Context, terrain [][]Terrain, minSize int, r
 
 	for _, body := range landBodies {
 		if body.size < minSize {
-			logger.Debug(fmt.Sprintf("Removing small island at %d,%d (size %d)", body.coords[0].X, body.coords[0].Y, body.size), RemovalLogTag)
+			replacement := majorityNeighborType(body.coords, terrain, Land)
+			logger.Debug(fmt.Sprintf("Removing small island at %d,%d (size %d) -> %v", body.coords[0].X, body.coords[0].Y, body.size, replacement), RemovalLogTag)
 			smallIslands++
 			for _, coord := range body.coords {
-				terrain[coord.X][coord.Y].Type = Water
+				terrain[coord.X][coord.Y].Type = replacement
 				terrain[coord.X][coord.Y].Magnitude = 0
 			}
 		}
@@ -567,6 +636,9 @@ func removeSmallIslands(ctx context.Context, terrain [][]Terrain, minSize int, r
 //   - Bit 5: Ocean
 //   - Bits 0-4: Magnitude (0-31). For Water, this is (Distance / 2).
 //
+// Impassable tiles are encoded as 0b10011111 (isLand=1, magnitude=31) and are
+// NOT counted in numLandTiles (they cannot be owned/attacked/nuked).
+//
 // Returns the packed data and the count of land tiles.
 func packTerrain(ctx context.Context, terrain [][]Terrain) (data []byte, numLandTiles int) {
 	width := len(terrain)
@@ -577,6 +649,14 @@ func packTerrain(ctx context.Context, terrain [][]Terrain) (data []byte, numLand
 	for x := 0; x < width; x++ {
 		for y := 0; y < height; y++ {
 			tile := terrain[x][y]
+
+			if tile.Type == Impassable {
+				// Impassable: isLand=1, magnitude=31, no shoreline, no ocean.
+				// Not counted as a land tile (can't be owned/attacked/nuked).
+				packedData[y*width+x] = 0b10011111
+				continue
+			}
+
 			var packedByte byte = 0
 
 			if tile.Type == Land {
@@ -652,6 +732,9 @@ type RGBA struct {
 // color schemes.
 //
 // For thumbnail purposes, the terrain type -> color mapping:
+//   - Impassable: (Transparent) — renders as the map background in-game, so
+//     the thumbnail matches by being transparent (the map picker background
+//     shows through).
 //   - Water Shoreline: (Transparent)
 //   - Deep Water: (Transparent)
 //   - Land Shoreline: `rgb(204, 203, 158)`
@@ -659,6 +742,9 @@ type RGBA struct {
 //   - Highlands (Mag 10-19): `rgb(220, 203, 158)` - `rgb(238, 221, 176)`
 //   - Mountains (Mag >= 20): `rgb(240, 240, 240)` - `rgb(245, 245, 245)`
 func getThumbnailColor(t Terrain) RGBA {
+	if t.Type == Impassable {
+		return RGBA{R: 0, G: 0, B: 0, A: 0}
+	}
 	if t.Type == Water {
 		// Shoreline water
 		if t.Shoreline {
@@ -833,4 +919,51 @@ type CombinedBinaryHeader struct {
 	MapSize       uint32
 	MiniMapOffset uint32
 	MiniMapSize   uint32
+}
+
+// majorityNeighborType returns the terrain type that appears most frequently
+// among the orthogonal neighbours of the given coords, excluding the body's own
+// type.  When the body borders a mix of types (e.g. Land + Impassable), the
+// majority determines what the body should become.  Ties are broken with a
+// fixed priority: Water > Impassable > Land (water is the most common
+// surrounding type in practice, and this preserves existing behaviour for the
+// common land-locked-in-water case).
+func majorityNeighborType(coords []Coord, terrain [][]Terrain, selfType TerrainType) TerrainType {
+	width := len(terrain)
+	height := len(terrain[0])
+
+	// Mark body members so we skip them.
+	inBody := make(map[Coord]bool, len(coords))
+	for _, c := range coords {
+		inBody[c] = true
+	}
+
+	// Track seen external neighbors so each unique tile votes at most once.
+	seen := make(map[Coord]bool, len(coords)*4)
+
+	var buf [4]Coord
+	counts := [3]int{} // index = TerrainType
+
+	for _, c := range coords {
+		n := neighborCoords(c.X, c.Y, width, height, &buf)
+		for _, nb := range buf[:n] {
+			if inBody[nb] || seen[nb] {
+				continue
+			}
+			seen[nb] = true
+			counts[terrain[nb.X][nb.Y].Type]++
+		}
+	}
+
+	// Water > Impassable > Land in tie-breaking priority.
+	best := Water
+	bestCount := counts[Water]
+	if counts[Impassable] > bestCount {
+		best = Impassable
+		bestCount = counts[Impassable]
+	}
+	if counts[Land] > bestCount {
+		best = Land
+	}
+	return best
 }
