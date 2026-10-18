@@ -107,6 +107,11 @@ RUN <<'EOF' tee /usr/local/bin/start.sh
 # Generate the create-game nginx upstream from NUM_WORKERS before nginx starts.
 /usr/local/bin/generate-nginx-upstream.sh
 
+# OpenMyFront on Render: identify each deploy by its real commit, so tabs left
+# open across an auto-deploy are told to refresh instead of joining games with
+# a different client build.
+if [ -n "${RENDER_GIT_COMMIT:-}" ]; then export GIT_COMMIT="$RENDER_GIT_COMMIT"; fi
+
 if [ "$DOMAIN" = openfront.dev ] && [ "$SUBDOMAIN" != main ]; then
     exec timeout 25h /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
 else
