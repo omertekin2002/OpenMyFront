@@ -1299,6 +1299,8 @@ export class GameServer {
   // put someone in (or seat someone into) this game — joinClient and the lobby
   // Play/Spectate toggle. Admins bypass it so moderation can reach any lobby.
   private passesAllowlist(client: Client): boolean {
+    // Allowlists match account public IDs; a self-host has no accounts.
+    if (ServerEnv.selfHost()) return true;
     const allowed = this.gameConfig.allowedPublicIds;
     if (allowed === undefined || allowed.length === 0) return true;
     if (isAdminRole(client.role)) return true;
@@ -1309,6 +1311,8 @@ export class GameServer {
   // reported as trusted at join time. Shared by joinClient and the seat toggle
   // for the same reason as passesAllowlist; admins bypass it the same way.
   private passesTrustGate(client: Client): boolean {
+    // Trust is reported by the central API; a self-host has none.
+    if (ServerEnv.selfHost()) return true;
     if (this.gameConfig.trusted !== true) return true;
     if (isAdminRole(client.role)) return true;
     return client.trusted;
@@ -1976,7 +1980,13 @@ export class GameServer {
     const candidates = this.winnerVote.candidates();
     const backers = this.winnerVote.backers();
     const votedAgreed = voted !== null && backers >= 2;
-    if (candidates === 0 || (candidates === 1 && votedAgreed)) {
+    if (
+      // Nothing is archived on a self-host, so skip the verifying replay (a
+      // full re-simulation in a 2 GB child process).
+      ServerEnv.selfHost() ||
+      candidates === 0 ||
+      (candidates === 1 && votedAgreed)
+    ) {
       this.archiveGame(voted, votedAgreed);
       return;
     }

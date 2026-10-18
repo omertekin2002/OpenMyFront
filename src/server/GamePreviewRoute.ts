@@ -48,6 +48,8 @@ export function registerGamePreviewRoute(opts: {
   const fetchPublicGameInfo = async (
     gameID: string,
   ): Promise<ExternalGameInfo | null> => {
+    // No central API to ask on a self-host.
+    if (ServerEnv.selfHost()) return null;
     if (!gameIDSchema.safeParse(gameID).success) return null;
 
     const controller = new AbortController();

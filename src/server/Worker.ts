@@ -124,9 +124,12 @@ export async function startWorker() {
     log,
   );
   // Cosmetics/privilege/profanity/clan-tag lists come from the central API
-  // backend; skip refreshing on self-host (the fail-open checker is used instead).
+  // backend; skip refreshing on self-host, where cosmetics resolve against the
+  // bundled catalog instead (everything is free there).
   if (!ServerEnv.selfHost()) {
     privilegeRefresher.start();
+  } else {
+    privilegeRefresher.loadBundledCosmetics();
   }
 
   // Ahead of everything that can reject a request — the worker-prefix check
@@ -405,6 +408,9 @@ export async function startWorker() {
   // host's token) to put it in the public Special queue, right behind the
   // lobby that's counting down.
   app.post("/api/game/:id/queue", async (req, res) => {
+    if (ServerEnv.selfHost()) {
+      return res.status(404).json({ error: "disabled" });
+    }
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
       return res.status(400).json({ error: "Authorization header required" });

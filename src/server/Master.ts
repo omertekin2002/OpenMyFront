@@ -165,7 +165,7 @@ export async function startMaster() {
 
   // A server that registers schedules nothing until the API calls it open: a
   // mistyped letter must not mint lobbies under a letter routed elsewhere.
-  const registers = checkinBody(0) !== null;
+  const registers = !ServerEnv.selfHost() && checkinBody(0) !== null;
   lobbyService = new MasterLobbyService(playlist, log, registers);
 
   const INSTANCE_ID =
@@ -282,6 +282,13 @@ export async function startMaster() {
     }, MAP_WEIGHTS_POLL_MS);
   }
 }
+
+// OpenMyFront: there is no central account/shop API. The client points its
+// API calls here (see ApiBase.ts) so browsers never probe a local-network
+// address; answer them all with a 404, which the client treats as "no API".
+app.all("/api/noapi/{*splat}", (_req, res) => {
+  res.status(404).json({ error: "no central API on this server" });
+});
 
 app.get("/api/health", (_req, res) => {
   const ready = lobbyService?.isHealthy() ?? false;

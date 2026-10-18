@@ -278,6 +278,110 @@ export class FailOpenPrivilegeChecker implements PrivilegeChecker {
   }
 }
 
+// Self-host (OpenMyFront): no accounts or store, so every cosmetic is free and
+// every player holds every wildcard flare.
+const SELF_HOST_FLARES = [
+  "pattern:*",
+  "flag:*",
+  "skin:*",
+  "crown:*",
+  "effect:*",
+];
+
+// Custom colours need a `color:` flare upstream. Everything is free here, so
+// any well-formed #rrggbb is accepted (the shape upstream's colour swatches
+// sent; today's client sends none). refs.color is an unbounded string that is
+// relayed to every client and fed to colord(), so anything else is dropped.
+const SELF_HOST_COLOR = /^#[0-9a-f]{6}$/i;
+
+// The resolver's result, or undefined when it throws (the ref doesn't resolve).
+function orDrop<T>(resolve: () => T): T | undefined {
+  try {
+    return resolve();
+  } catch {
+    return undefined;
+  }
+}
+
+function ownEntries<T>(section: Record<string, T>): Record<string, T> {
+  return Object.assign(Object.create(null), section);
+}
+
+/**
+ * Resolves refs as an owner of everything in the catalog, through
+ * PrivilegeCheckerImpl, so the cosmetics match what upstream sends an owner.
+ * Never forbidden (Worker.ts closes the socket on that): a ref that doesn't
+ * resolve (unknown name, bad pattern data, bad country code, bad effect slot)
+ * is dropped instead.
+ */
+export class SelfHostPrivilegeChecker implements PrivilegeChecker {
+  private owner: PrivilegeCheckerImpl;
+
+  constructor(
+    cosmetics: Cosmetics,
+    b64urlDecode: (base64: string) => Uint8Array,
+  ) {
+    // The resolvers index plain objects, so with every wildcard granted a
+    // forged name like "constructor" would find an inherited Object member (a
+    // skin without a url, a function as palette) and fail the game-start
+    // schema for the whole lobby. Effects already check the entry's type.
+    this.owner = new PrivilegeCheckerImpl(
+      {
+        ...cosmetics,
+        colorPalettes:
+          cosmetics.colorPalettes && ownEntries(cosmetics.colorPalettes),
+        patterns: ownEntries(cosmetics.patterns),
+        flags: ownEntries(cosmetics.flags),
+        skins: cosmetics.skins && ownEntries(cosmetics.skins),
+        crowns: cosmetics.crowns && ownEntries(cosmetics.crowns),
+      },
+      b64urlDecode,
+    );
+  }
+
+  isAllowed(flares: string[], refs: PlayerCosmeticRefs): CosmeticResult {
+    const { patternName, flag, skinName, crownName, color } = refs;
+    const palette = refs.patternColorPaletteName ?? null;
+    const all = SELF_HOST_FLARES;
+    const cosmetics: PlayerCosmetics = {};
+    const pattern = patternName
+      ? orDrop(() => this.owner.isPatternAllowed(all, patternName, palette))
+      : undefined;
+    if (pattern) cosmetics.pattern = pattern;
+    const flagUrl = flag
+      ? orDrop(() => this.owner.isFlagAllowed(all, flag))
+      : undefined;
+    if (flagUrl) cosmetics.flag = flagUrl;
+    const skin = skinName
+      ? orDrop(() => this.owner.isSkinAllowed(all, skinName))
+      : undefined;
+    if (skin) cosmetics.skin = skin;
+    const crown = crownName
+      ? orDrop(() => this.owner.isCrownAllowed(all, crownName))
+      : undefined;
+    if (crown) cosmetics.crown = crown;
+    for (const [slot, name] of Object.entries(refs.effects ?? {})) {
+      const effect = orDrop(() => this.owner.isEffectAllowed(all, slot, name));
+      if (effect) {
+        cosmetics.effects ??= {};
+        cosmetics.effects[slot] = effect;
+      }
+    }
+    if (color && SELF_HOST_COLOR.test(color)) cosmetics.color = { color };
+    // Passed through like the other checkers; resolveVerifiedJoin decides it.
+    if (refs.verified === true) cosmetics.verified = true;
+    return { type: "allowed", cosmetics };
+  }
+
+  // No reserved-tag list without the central API: fail open, keep the tag.
+  resolveClanTag(
+    censoredTag: string | null,
+    ownedClanTags: string[],
+  ): ClanTagResolution {
+    return { tag: censoredTag, dropped: false };
+  }
+}
+
 /**
  * Decide whether a join keeps the verified check.
  *

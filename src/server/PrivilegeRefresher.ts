@@ -1,13 +1,25 @@
 import { ReservedClanTagsResponseSchema } from "@openfront/shared/ClanApiSchemas";
 import { CosmeticsSchema } from "@openfront/shared/CosmeticSchemas";
+import fs from "fs";
 import { base64url } from "jose";
+import path from "path";
+import { fileURLToPath } from "url";
 import { Logger } from "winston";
 import { startPolling } from "./PollingLoop";
 import {
   FailOpenPrivilegeChecker,
   PrivilegeChecker,
   PrivilegeCheckerImpl,
+  SelfHostPrivilegeChecker,
 } from "./Privilege";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// The catalog the client bundles. The Docker image copies resources/ and src/
+// side by side, so this resolves there as well as in a dev checkout.
+const BUNDLED_COSMETICS = path.join(
+  __dirname,
+  "../../resources/cosmetics/cosmetics.json",
+);
 
 // Refreshes the privilege checker every 3 minutes.
 // WARNING: This fails open if cosmetics.json is not available.
@@ -37,6 +49,29 @@ export class PrivilegeRefresher {
 
   public get(): PrivilegeChecker {
     return this.privilegeChecker ?? this.failOpenPrivilegeChecker;
+  }
+
+  // Self-host: no API to poll and every cosmetic is free, so refs resolve
+  // against the bundled catalog, loaded once. If it's missing or invalid this
+  // fails open, like an API outage: catalog cosmetics are dropped.
+  public loadBundledCosmetics(catalogPath: string = BUNDLED_COSMETICS) {
+    try {
+      const result = CosmeticsSchema.safeParse(
+        JSON.parse(fs.readFileSync(catalogPath, "utf8")),
+      );
+      if (!result.success) {
+        throw new Error(`Invalid cosmetics data: ${result.error.message}`);
+      }
+      this.privilegeChecker = new SelfHostPrivilegeChecker(
+        result.data,
+        base64url.decode,
+      );
+      this.log.info(`Loaded bundled cosmetics from ${catalogPath}`);
+    } catch (error) {
+      this.log.warn(
+        `Failed to load bundled cosmetics from ${catalogPath}, failing open: ${error}`,
+      );
+    }
   }
 
   private async loadPrivilegeChecker(): Promise<void> {
