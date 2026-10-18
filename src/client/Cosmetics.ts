@@ -1371,6 +1371,14 @@ export function resolvedToPlayerPattern(
 // resolved what name the player is joining under (see resolvePlayerName), and
 // the badge has to agree with that exact decision. Reading it back out of the
 // DOM here was the same missing seam.
+// Self-host: every cosmetic is free/owned (see the *Relationship functions), so
+// a join may carry any catalog item; the server resolves them against the same
+// bundled catalog (SelfHostPrivilegeChecker). Upstream reads these from the
+// account's /users/@me flares and withholds every selection without one.
+async function selfHostFlares(): Promise<string[]> {
+  return ["pattern:*", "flag:*", "skin:*", "crown:*", "effect:*"];
+}
+
 export async function getPlayerCosmeticsRefs(
   opts: { verified?: boolean } = {},
 ): Promise<PlayerCosmeticRefs> {
@@ -1385,21 +1393,15 @@ export async function getPlayerCosmeticsRefs(
   let patternDenied = false;
 
   if (pattern) {
-    const userMe = await getUserMe();
-    if (userMe) {
-      const flareName =
-        pattern.colorPalette?.name === undefined
-          ? `pattern:${pattern.name}`
-          : `pattern:${pattern.name}:${pattern.colorPalette.name}`;
-      const flares = userMe.player.flares ?? [];
-      const hasWildcard = flares.includes("pattern:*");
-      if (!hasWildcard && !flares.includes(flareName)) {
-        pattern = null;
-        patternDenied = true;
-      }
-    } else {
-      // Unknown profile: keep the selection in settings, but do not send it.
+    const flares = await selfHostFlares();
+    const flareName =
+      pattern.colorPalette?.name === undefined
+        ? `pattern:${pattern.name}`
+        : `pattern:${pattern.name}:${pattern.colorPalette.name}`;
+    const hasWildcard = flares.includes("pattern:*");
+    if (!hasWildcard && !flares.includes(flareName)) {
       pattern = null;
+      patternDenied = true;
     }
     if (patternDenied) {
       userSettings.setSelectedPatternName(undefined);
@@ -1425,22 +1427,11 @@ export async function getPlayerCosmeticsRefs(
         flagDenied = true;
       }
     } else {
-      const userMe = await getUserMe();
-      if (userMe) {
-        const flares = userMe.player.flares ?? [];
-        const hasWildcard = flares.includes("flag:*");
-        if (!hasWildcard && !flares.includes(`flag:${flagData.name}`)) {
-          flag = null;
-          flagDenied = true;
-        }
-      } else {
-        // Unknown profile: keep the selection, but do not send it. An
-        // entitlement we cannot verify is not one to claim — the server does
-        // not strip an unowned cosmetic ref, it refuses the connection
-        // (Privilege returns "forbidden", Worker.ts closes the socket with
-        // CosmeticsForbidden), so sending it would trade a lost flag for an
-        // unjoinable multiplayer.
+      const flares = await selfHostFlares();
+      const hasWildcard = flares.includes("flag:*");
+      if (!hasWildcard && !flares.includes(`flag:${flagData.name}`)) {
         flag = null;
+        flagDenied = true;
       }
     }
   }
@@ -1459,17 +1450,11 @@ export async function getPlayerCosmeticsRefs(
         skinDenied = true;
       }
     } else {
-      const userMe = await getUserMe();
-      if (userMe) {
-        const flares = userMe.player.flares ?? [];
-        const hasWildcard = flares.includes("skin:*");
-        if (!hasWildcard && !flares.includes(`skin:${skin.name}`)) {
-          skinName = undefined;
-          skinDenied = true;
-        }
-      } else {
-        // Unknown profile: keep the selection, but do not send it.
+      const flares = await selfHostFlares();
+      const hasWildcard = flares.includes("skin:*");
+      if (!hasWildcard && !flares.includes(`skin:${skin.name}`)) {
         skinName = undefined;
+        skinDenied = true;
       }
     }
     if (skinDenied) {
@@ -1488,17 +1473,11 @@ export async function getPlayerCosmeticsRefs(
         crownDenied = true;
       }
     } else {
-      const userMe = await getUserMe();
-      if (userMe) {
-        const flares = userMe.player.flares ?? [];
-        const hasWildcard = flares.includes("crown:*");
-        if (!hasWildcard && !flares.includes(`crown:${crown.name}`)) {
-          crownName = undefined;
-          crownDenied = true;
-        }
-      } else {
-        // Unknown profile: keep the selection, but do not send it.
+      const flares = await selfHostFlares();
+      const hasWildcard = flares.includes("crown:*");
+      if (!hasWildcard && !flares.includes(`crown:${crown.name}`)) {
         crownName = undefined;
+        crownDenied = true;
       }
     }
     if (crownDenied) {
@@ -1510,7 +1489,7 @@ export async function getPlayerCosmeticsRefs(
   // trails and the nukeType for nuke explosions (see effectTypeForSlot). Drop any
   // entry whose effect no longer exists, doesn't fit the slot, or the user can't
   // access. Like skins/flags/patterns above, a selection is kept in settings (and
-  // omitted from join refs) when cosmetics or userMe fail to load.
+  // omitted from join refs) when cosmetics fail to load.
   const selectedEffects = userSettings.getSelectedEffects();
   const effects: Record<string, string> = {};
   for (const [slot, name] of Object.entries(selectedEffects)) {
@@ -1521,16 +1500,10 @@ export async function getPlayerCosmeticsRefs(
       }
       continue;
     }
-    const userMe = await getUserMe();
-    if (userMe) {
-      const flares = userMe.player.flares ?? [];
-      const hasWildcard = flares.includes("effect:*");
-      if (!hasWildcard && !flares.includes(`effect:${effect.name}`)) {
-        userSettings.setSelectedEffectName(slot, undefined);
-        continue;
-      }
-    } else {
-      // Unknown profile: keep the selection in settings, but do not send it.
+    const flares = await selfHostFlares();
+    const hasWildcard = flares.includes("effect:*");
+    if (!hasWildcard && !flares.includes(`effect:${effect.name}`)) {
+      userSettings.setSelectedEffectName(slot, undefined);
       continue;
     }
     effects[slot] = name;
