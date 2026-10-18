@@ -7,9 +7,8 @@ import { getUserMe, invalidateUserMe } from "./Api";
 import { checkClanTagOwnership } from "./ClanApi";
 import { verifiedBadge } from "./components/ui/VerifiedBadge";
 import { gamePortal } from "./GamePortal";
-import { showInGameAlert, showInGameConfirm } from "./InGameModal";
+import { showInGameAlert } from "./InGameModal";
 import {
-  accountNameHeld,
   accountVerifiedName,
   clampUsername,
   genAnonUsername,
@@ -302,18 +301,6 @@ export class UsernameInput extends LitElement {
 
   // "Browse clans" has to name the tab explicitly: showPage alone opens the
   // modal on its default my-clans tab, which is not what the label promises.
-  private openClanBrowser = () => {
-    this.clanMenuOpen = false;
-    window.showPage?.("page-clan");
-    void customElements.whenDefined("clan-modal").then(() => {
-      document
-        .querySelector<HTMLElement & { open: (args: { tab: string }) => void }>(
-          "clan-modal",
-        )
-        ?.open({ tab: "browse" });
-    });
-  };
-
   // The bare name this player may play verified under, or null when
   // ineligible. The rule itself lives in PlayerName so the join path and the
   // resolver can't disagree with the toggle about who qualifies.
@@ -470,54 +457,6 @@ export class UsernameInput extends LitElement {
       );
     }
     void showInGameAlert(message);
-  }
-
-  private async handleVerifiedToggle() {
-    // verifiedActive implies eligible (applyVerifiedPreference), so this
-    // covers both turning off and an eligible turn-on.
-    if (this.verifiedActive || this.verifiedName() !== null) {
-      this.verifiedActive = !this.verifiedActive;
-      localStorage.setItem(useVerifiedNameKey, String(this.verifiedActive));
-      this.validateAndStore();
-      return;
-    }
-    // Ineligible — the toggle can't turn on.
-    const player = this.userMe === false ? undefined : this.userMe?.player;
-    const status = player?.usernameStatus;
-    if (accountNameHeld(this.userMe)) {
-      // Subscribed, but someone else holds the bare name: they display as
-      // base.disc and cannot play with the check until they rename. Say so,
-      // then offer the form (spec, 10 Sept 2026).
-      const rename = await showInGameConfirm(
-        translateText("username.verified_held_body", {
-          name: player?.usernameBase ?? "",
-        }),
-        {
-          heading: translateText("username.verified_heading"),
-          variant: "warning",
-          confirmText: translateText("username.verified_held_confirm"),
-        },
-      );
-      if (rename) window.location.hash = "modal=change-username";
-      return;
-    }
-    if (status === "premium" || status === "indefinite") {
-      // Subscribed but no usable name yet (never set, or TEMPORARY####):
-      // send them straight to the username form.
-      window.location.hash = "modal=change-username";
-      return;
-    }
-    const goStore = await showInGameConfirm(
-      translateText("username.verified_sub_required"),
-      {
-        heading: translateText("username.verified_heading"),
-        variant: "warning",
-        confirmText: translateText("username.verified_sub_required_confirm"),
-      },
-    );
-    if (goStore) {
-      window.location.hash = "modal=store&tab=subscriptions";
-    }
   }
 
   /**
@@ -912,8 +851,6 @@ export class UsernameInput extends LitElement {
   }
 
   private renderClanMenu() {
-    const clans = this.myClans();
-    const active = this.clanTag.toUpperCase();
     return html`
       <div
         id="clan-tag-menu"
@@ -921,57 +858,7 @@ export class UsernameInput extends LitElement {
         aria-labelledby="clan-tag-button"
         class="absolute left-0 top-full z-50 mt-1.5 w-[17rem] max-w-[80vw] rounded-xl border border-white/15 bg-surface/95 p-1.5 shadow-xl backdrop-blur-md"
       >
-        ${clans.length > 0
-          ? html`
-              <div
-                class="px-2 pt-1 pb-1.5 text-[11px] font-bold uppercase tracking-wider text-white/40"
-              >
-                ${translateText("username.clan_your_clans")}
-              </div>
-              <div class="max-h-56 overflow-y-auto">
-                ${clans.map(
-                  (clan) => html`
-                    <button
-                      type="button"
-                      class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors cursor-pointer ${clan.tag.toUpperCase() ===
-                      active
-                        ? "bg-malibu-blue/25"
-                        : "hover:bg-white/10"}"
-                      @click=${() => this.selectClan(clan.tag)}
-                    >
-                      <span
-                        class="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-sm font-bold uppercase tracking-wider text-white"
-                        >${clan.tag}</span
-                      >
-                      <span
-                        class="min-w-0 flex-1 truncate text-sm text-white/80"
-                        >${clan.name}</span
-                      >
-                      ${clan.tag.toUpperCase() === active
-                        ? html`<svg
-                            viewBox="0 0 24 24"
-                            class="w-4 h-4 shrink-0 text-malibu-blue"
-                            aria-hidden="true"
-                          >
-                            <path
-                              d="M5 12.5l4.5 4.5L19 7"
-                              stroke="currentColor"
-                              stroke-width="2.5"
-                              fill="none"
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                            ></path>
-                          </svg>`
-                        : null}
-                    </button>
-                  `,
-                )}
-              </div>
-            `
-          : html`<div class="px-2 pt-1.5 pb-1 text-sm text-white/50">
-              ${translateText("username.clan_none_joined")}
-            </div>`}
-        <div class="mt-1.5 border-t border-white/10 pt-1.5">
+        <div class="pt-0.5">
           <label
             class="block px-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-white/40"
             for="clan-tag-manual"
@@ -988,45 +875,32 @@ export class UsernameInput extends LitElement {
             class="w-full rounded-lg border border-white/15 bg-black/30 px-2 py-1.5 text-base font-semibold uppercase tracking-wider text-white placeholder-white/30 focus:border-malibu-blue/60 focus:outline-none"
           />
         </div>
-        <div
-          class="mt-1.5 flex items-center gap-2 border-t border-white/10 pt-1.5"
-        >
-          ${this.clanTag
-            ? html`<button
+        ${this.clanTag
+          ? html`<div
+              class="mt-1.5 flex items-center gap-2 border-t border-white/10 pt-1.5"
+            >
+              <button
                 type="button"
                 class="rounded-lg px-2 py-1 text-sm text-white/60 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
                 @click=${() => this.selectClan(null)}
               >
                 ${translateText("username.clan_clear")}
-              </button>`
-            : null}
-          <button
-            type="button"
-            class="ml-auto rounded-lg px-2 py-1 text-sm text-malibu-blue hover:bg-malibu-blue/15 transition-colors cursor-pointer"
-            @click=${this.openClanBrowser}
-          >
-            ${translateText("username.clan_browse")}
-          </button>
-        </div>
+              </button>
+            </div>`
+          : null}
       </div>
     `;
   }
 
   // Name field. Verified play swaps the free-text input for a badge-led chip so
-  // the state reads as "this is my account name", not "the input broke".
+  // the state reads as "this is my account name", not "the input broke". No
+  // toggle on this self-host: verified names need an account (and a
+  // subscription), so the button could only lead to the store.
   private renderNameControl() {
     return html`
       ${this.verifiedActive
         ? this.renderVerifiedChip()
         : this.renderNameInput()}
-      <!-- The buttons differ in width, so this resizes the name field — which
-           is transparent and left-aligned, so only its invisible right edge
-           moves. -->
-      <div class="no-game-portal shrink-0 h-full max-h-[44px]">
-        ${this.verifiedActive
-          ? this.renderUseCustomButton()
-          : this.renderUseVerifiedButton()}
-      </div>
     `;
   }
 
@@ -1046,34 +920,6 @@ export class UsernameInput extends LitElement {
     `;
   }
 
-  private renderUseCustomButton() {
-    return html`
-      <button
-        type="button"
-        class="flex h-full aspect-square items-center justify-center rounded-lg border border-white/15 bg-black/25 text-white/70 transition-colors hover:border-white/30 hover:bg-black/40 hover:text-white cursor-pointer"
-        title=${translateText("username.verified_use_custom")}
-        aria-label=${translateText("username.verified_use_custom")}
-        @click=${this.handleVerifiedToggle}
-      >
-        <!-- Icon only; the label lives in title/aria-label. Sized to the
-             verified badge so the two buttons read as a pair. -->
-        <svg
-          viewBox="0 0 24 24"
-          class="w-5 h-5"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M12 20h9"></path>
-          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
-        </svg>
-      </button>
-    `;
-  }
-
   private renderNameInput() {
     return html`
       <input
@@ -1086,43 +932,6 @@ export class UsernameInput extends LitElement {
         aria-label=${translateText("username.enter_username")}
         class="text-left text-white placeholder-white/50 transition-colors text-ellipsis hover:bg-white/5 focus:bg-white/5 focus:outline-none focus:ring-2 focus:ring-malibu-blue/60 ${NAME_BOX} ${NAME_TEXT}"
       />
-    `;
-  }
-
-  private renderUseVerifiedButton() {
-    const eligible = this.verifiedName() !== null;
-    const held = accountNameHeld(this.userMe);
-    const hint = held
-      ? translateText("username.verified_held_hint", {
-          name:
-            (this.userMe === false ? undefined : this.userMe?.player)
-              ?.usernameBase ?? "",
-        })
-      : translateText("username.verified_use_hint");
-    return html`
-      <button
-        type="button"
-        class="group flex h-full w-full items-center justify-center gap-1.5 rounded-lg border px-2 transition-colors cursor-pointer select-none ${eligible
-          ? "border-malibu-blue/50 bg-malibu-blue/10 hover:border-malibu-blue/80 hover:bg-malibu-blue/20"
-          : "border-white/10 bg-black/20 hover:border-white/25 hover:bg-black/35"}"
-        title=${hint}
-        aria-pressed="false"
-        @click=${this.handleVerifiedToggle}
-      >
-        ${verifiedBadge(
-          "w-5 h-5 transition-colors",
-          eligible
-            ? "text-aquarius"
-            : "text-white/25 group-hover:text-white/45",
-          null,
-        )}
-        <span
-          class="hidden sm:inline text-sm font-medium whitespace-nowrap transition-colors ${eligible
-            ? "text-white"
-            : "text-white/60 group-hover:text-white/90"}"
-          >${translateText("username.verified_use")}</span
-        >
-      </button>
     `;
   }
 

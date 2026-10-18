@@ -195,10 +195,6 @@
     {
       "key": "coastline",
       "requiresPlayer": false
-    },
-    {
-      "key": "join_discord",
-      "requiresPlayer": false
     }
   ],
   "warnings": [

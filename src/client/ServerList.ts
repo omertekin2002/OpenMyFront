@@ -196,8 +196,10 @@ export function resetServerList(): void {
  *   still asks for its site's list rather than a host nobody registers.
  */
 export function serverListSite(): string | undefined {
-  if (isDesktopShell()) return ClientEnv.serverHost();
-  return ClientEnv.siteHost() ?? window.location.host;
+  // OpenMyFront: there is no central API serving server lists. Undefined
+  // means no heartbeat and never "confirmed down"; ensureServerList() falls
+  // back to this page's own server, so Create and Join keep working.
+  return undefined;
 }
 
 /**

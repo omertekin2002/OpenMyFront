@@ -55,6 +55,8 @@ const donateGoldIcon = assetUrl("images/DonateGoldIconWhite.svg");
 const donateTroopIcon = assetUrl("images/DonateTroopIconWhite.svg");
 const emojiIcon = assetUrl("images/EmojiIconWhite.svg");
 const reportIcon = assetUrl("images/SirenIconWhite.svg");
+// OpenMyFront has no central moderation API to send player reports to.
+const SELF_HOSTED = true;
 const shieldIcon = assetUrl("images/ShieldIconWhite.svg");
 const stopTradingIcon = assetUrl("images/StopIconWhite.svg");
 const targetIcon = assetUrl("images/TargetIconWhite.svg");
@@ -411,7 +413,10 @@ export class PlayerPanel extends LitElement implements Controller {
   // Anyone may report another human of a multiplayer game. Singleplayer
   // records are client-authored and the API ignores their reports; once the
   // game is decided the record has been archived and the server refuses.
+  // OpenMyFront: reports ride the archived game record to the central API's
+  // moderation queue, and a self-host archives nothing, so never offer it.
   private canReport(my: PlayerView, other: PlayerView): boolean {
+    if (SELF_HOSTED) return false;
     return (
       this.g.config().gameConfig().gameType !== GameType.Singleplayer &&
       !this.g.config().isReplay() &&

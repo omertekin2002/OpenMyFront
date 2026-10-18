@@ -158,13 +158,13 @@ body.halloween-theme:not(.in-game) mobile-nav-bar .nav-menu-item.active {
 }
 
 /* Nav Bar Logo Image (Blue -> Orange with Jack-o'-Lantern candlelight flicker) */
-body.halloween-theme:not(.in-game) desktop-nav-bar img[src*="OpenFrontLogo"],
-body.halloween-theme:not(.in-game) mobile-nav-bar img[src*="OpenFrontLogo"],
+body.halloween-theme:not(.in-game) desktop-nav-bar img[src*="OpenMyFrontLogo"],
+body.halloween-theme:not(.in-game) mobile-nav-bar img[src*="OpenMyFrontLogo"],
 body.halloween-theme:not(.in-game)
   play-page
   div.fixed
-  img[src*="OpenFrontLogo"],
-body.halloween-theme:not(.in-game) img[src*="OpenFrontLogo"] {
+  img[src*="OpenMyFrontLogo"],
+body.halloween-theme:not(.in-game) img[src*="OpenMyFrontLogo"] {
   filter: hue-rotate(150deg) saturate(1.5) brightness(1.15)
     drop-shadow(0 0 6px rgba(234, 112, 8, 0.5));
   animation: hw-candle-flicker 3.2s infinite ease-in-out !important;
@@ -582,13 +582,13 @@ body.halloween-theme:not(.in-game)
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body.halloween-theme:not(.in-game) desktop-nav-bar img[src*="OpenFrontLogo"],
-  body.halloween-theme:not(.in-game) mobile-nav-bar img[src*="OpenFrontLogo"],
+  body.halloween-theme:not(.in-game) desktop-nav-bar img[src*="OpenMyFrontLogo"],
+  body.halloween-theme:not(.in-game) mobile-nav-bar img[src*="OpenMyFrontLogo"],
   body.halloween-theme:not(.in-game)
     play-page
     div.fixed
-    img[src*="OpenFrontLogo"],
-  body.halloween-theme:not(.in-game) img[src*="OpenFrontLogo"],
+    img[src*="OpenMyFrontLogo"],
+  body.halloween-theme:not(.in-game) img[src*="OpenMyFrontLogo"],
   body.halloween-theme:not(.in-game) .l-header__highlightText {
     animation: none !important;
   }

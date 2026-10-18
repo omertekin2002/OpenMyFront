@@ -342,14 +342,18 @@ class Client {
     startServerListPolling();
 
     // Prefetch turnstile token so it is available when the user joins a lobby.
-    // Desktop (Steam) has no Turnstile script and is server-side exempt, so
-    // skip it — otherwise getTurnstileToken() throws "Failed to load Turnstile
-    // script" after its load wait. Also skip on the versioned replay shells:
-    // the replay host may not be on the Turnstile site key's domain allowlist,
-    // so rendering the widget there just fails — and replays never
-    // send a token anyway (see getTurnstileToken below).
+    // Dev (which this self-host runs as) never sends a token and the page
+    // doesn't load the Turnstile script, so skip it there. Desktop (Steam) has
+    // no Turnstile script and is server-side exempt, so skip it — otherwise
+    // getTurnstileToken() throws "Failed to load Turnstile script" after its
+    // load wait. Also skip on the versioned replay shells: the replay host may
+    // not be on the Turnstile site key's domain allowlist, so rendering the
+    // widget there just fails — and replays never send a token anyway (see
+    // getTurnstileToken below).
     const turnstilePrefetch =
-      isDesktopShell() || isReplayShellHost(window.location.hostname)
+      ClientEnv.env() === GameEnv.Dev ||
+      isDesktopShell() ||
+      isReplayShellHost(window.location.hostname)
         ? null
         : getTurnstileToken();
     // A prefetch that fails is not an error anyone has asked about yet: the

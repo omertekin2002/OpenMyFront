@@ -32,7 +32,6 @@ import { Platform } from "./Platform";
 import type { AudioControls } from "./sound/CuePlayer";
 import { audioControls, playCue } from "./sound/CuePlayer";
 import type { CueCategory } from "./sound/Sounds";
-import { canHandOffToSteam } from "./SteamHandoff";
 import type { UIState } from "./UIState";
 import {
   AudioCategory,
@@ -470,12 +469,6 @@ export class UserSettingModal extends BaseModal {
 
   private toggleReplayViewer(e: Event) {
     this.userSettings.setReplayViewer((e.target as HTMLInputElement).checked);
-  }
-
-  private toggleSteamLobbyLinks() {
-    this.userSettings.setSteamLobbyLinks(
-      this.userSettings.steamLobbyLinks() === "steam" ? "browser" : "steam",
-    );
   }
 
   private toggleLeftClickOpensMenu() {
@@ -1904,18 +1897,6 @@ export class UserSettingModal extends BaseModal {
         .checked=${this.userSettings.replayViewer()}
         @change=${this.toggleReplayViewer}
       ></setting-toggle>
-
-      ${canHandOffToSteam()
-        ? html`<setting-toggle
-            label="${translateText("user_setting.steam_lobby_links_label")}"
-            description="${translateText(
-              "user_setting.steam_lobby_links_desc",
-            )}"
-            id="steam-lobby-links-toggle"
-            .checked=${this.userSettings.steamLobbyLinks() === "steam"}
-            @change=${this.toggleSteamLobbyLinks}
-          ></setting-toggle>`
-        : null}
 
       <!-- 🔍 Go to player -->
       <setting-toggle
