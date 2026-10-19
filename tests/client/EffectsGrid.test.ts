@@ -6,7 +6,7 @@ import {
 } from "@openfront/shared/CosmeticSchemas";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { purchaseCosmetic } from "../../src/client/Cosmetics";
-import { EFFECTS_KEY, UserSettings } from "../../src/client/UserSettings";
+import { UserSettings } from "../../src/client/UserSettings";
 import type { CosmeticCard } from "../../src/client/components/CosmeticCard";
 import "../../src/client/components/EffectsGrid";
 import type { EffectsGrid } from "../../src/client/components/EffectsGrid";
@@ -331,28 +331,7 @@ describe("EffectsGrid", () => {
     expect(grid.querySelector("[data-effects-unequip]")).toBeTruthy();
   });
 
-  it("focuses purchases without initiating a purchase", async () => {
-    const onPurchaseFocus = vi.fn();
-    grid = await createGrid();
-    grid.mode = "purchase";
-    grid.tabbed = true;
-    grid.onPurchaseFocus = onPurchaseFocus;
-    grid.requestUpdate();
-    await grid.updateComplete;
-
-    clickEffectType(grid, "nukeExplosion");
-    await grid.updateComplete;
-    clickNukeType(grid, "hydro");
-    await grid.updateComplete;
-
-    const locked = effectCard(grid, "effect:nukeExplosion:locked_hydro")!;
-    locked.onActivate!(locked.resolved);
-    expect(onPurchaseFocus).toHaveBeenCalledWith(locked.resolved);
-    expect(purchaseCosmetic).not.toHaveBeenCalled();
-    expect(localStorage.getItem(EFFECTS_KEY)).toBeNull();
-  });
-
-  it("reports visible purchases when the nuke sub-tab changes", async () => {
+  it("offers nothing to buy, since every effect is owned on a self-host", async () => {
     const onVisiblePurchaseItemsChange = vi.fn();
     grid = await createGrid();
     grid.mode = "purchase";
@@ -366,38 +345,16 @@ describe("EffectsGrid", () => {
     clickNukeType(grid, "hydro");
     await grid.updateComplete;
 
-    expect(onVisiblePurchaseItemsChange).toHaveBeenLastCalledWith([
-      expect.objectContaining({ key: "effect:nukeExplosion:locked_hydro" }),
-      expect.objectContaining({
-        key: "effect:nukeExplosion:locked_hydro_alt",
-      }),
-    ]);
-  });
-
-  it("marks only the Store-focused effect as focused", async () => {
-    grid = await createGrid();
-    grid.mode = "purchase";
-    grid.tabbed = true;
-    grid.focusedKey = "effect:nukeExplosion:locked_hydro";
-    grid.requestUpdate();
-    await grid.updateComplete;
-
-    clickEffectType(grid, "nukeExplosion");
-    await grid.updateComplete;
-    clickNukeType(grid, "hydro");
-    await grid.updateComplete;
-
-    expect(effectCard(grid, "effect:nukeExplosion:locked_hydro")?.state).toBe(
-      "focused",
-    );
+    // The priced hydro effects are owned like the rest, so none is for sale.
+    expect(onVisiblePurchaseItemsChange).toHaveBeenLastCalledWith([]);
     expect(
-      effectCard(grid, "effect:nukeExplosion:locked_hydro_alt")?.state,
-    ).toBe("idle");
+      effectCard(grid, "effect:nukeExplosion:locked_hydro"),
+    ).toBeUndefined();
+    expect(purchaseCosmetic).not.toHaveBeenCalled();
   });
 
   it("uses a two-column phone grid with responsive expansion", async () => {
     grid = await createGrid();
-    grid.mode = "purchase";
     grid.tabbed = true;
     grid.requestUpdate();
     await grid.updateComplete;

@@ -16,17 +16,6 @@ vi.mock("@openfront/shared/AssetUrls", () => ({
   assetUrl: (path: string) => path,
 }));
 
-// Rendering play-page mounts its children too (steam-wishlist, cosmetic
-// background, …), and some reach for browser APIs jsdom doesn't ship.
-vi.stubGlobal(
-  "ResizeObserver",
-  class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  },
-);
-
 import { PlayPage } from "../../src/client/components/PlayPage";
 
 describe("play-page mobile top bar", () => {
@@ -55,8 +44,9 @@ describe("play-page mobile top bar", () => {
   describe("off CrazyGames", () => {
     beforeEach(mount);
 
-    it("puts the bell/help icons beside the profile menu", () => {
-      expect(rightSlot()).toEqual(["nav-utility-icons", "nav-account-menu"]);
+    it("puts the help/settings icons in the right slot, with no profile menu", () => {
+      // No accounts on this self-host, so no profile menu sits beside them.
+      expect(rightSlot()).toEqual(["nav-utility-icons"]);
     });
   });
 
@@ -66,11 +56,10 @@ describe("play-page mobile top bar", () => {
       await mount();
     });
 
-    it("renders the same controls — the menu covers their sign-in too", () => {
-      // News and Help left the hamburger, so the icons have to be here for
-      // CrazyGames players; the profile menu's own "Sign in" item hands off to
-      // their SDK prompt, so no platform-specific button is needed.
-      expect(rightSlot()).toEqual(["nav-utility-icons", "nav-account-menu"]);
+    it("renders the same controls", () => {
+      // Help left the hamburger, so the icons have to be here for CrazyGames
+      // players too; no platform-specific button is needed.
+      expect(rightSlot()).toEqual(["nav-utility-icons"]);
     });
   });
 });

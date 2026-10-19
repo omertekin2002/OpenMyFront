@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { loadModal } from "../../src/client/LazyModals";
 import { SendKickPlayerIntentEvent } from "../../src/client/LobbyEvents";
 import { capturePagePin } from "../../src/client/PagePin";
+import { lastUserMeResponse } from "../../src/client/UserMeBroadcast";
 import { translateText } from "../../src/client/Utils";
 
 const mocks = vi.hoisted(() => ({
@@ -23,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   getUserMe: vi.fn(async (): Promise<unknown> => false),
   invalidateUserMe: vi.fn(),
   joinLobby: vi.fn(),
+  turnstileRender: vi.fn(() => "widget-1"),
 }));
 
 // Auth is imported by half the component tree; keep the real module and only
@@ -48,53 +50,6 @@ vi.mock("../../src/client/Api", async (importOriginal) => {
     invalidateUserMe: mocks.invalidateUserMe,
   };
 });
-
-// Deterministic "version element not found" (Main.ts line 411) regardless of
-// whether the Lit nav bars have rendered their version spans yet.
-vi.mock("../../src/client/GameVersion", async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return { ...actual, renderNavVersion: () => 0 };
-});
-
-// Main is the only importer. Stubbing it keeps onUserMe's boot-interrupt tail
-// deterministic (no confirm dialogs, no reward popups).
-vi.mock("../../src/client/BootInterrupts", () => ({
-  bootInterruptsAllowed: () => false,
-  CLAIM_PROMPT_KEY: "claim-prompt-store",
-  claimPromptDue: () => false,
-  claimPromptStringsReady: () => false,
-  steamGrantStringsReady: () => false,
-  joinOwnsInFlightFlag: () => true,
-  lapseShownAfterDispatch: (
-    _resp: unknown,
-    _marker: unknown,
-    dispatch: () => void,
-  ) => {
-    dispatch();
-    return false;
-  },
-  nextBootInterrupt: () => null,
-  parseClaimPromptStore: () => ({}),
-  runBootInterrupt: async () => {},
-}));
-
-// Injects a third-party script and polls; nothing under test needs it.
-vi.mock("../../src/client/Admiral", () => ({
-  loadAdmiral: vi.fn(),
-  onAdmiralMeasured: vi.fn(),
-}));
-
-// adGatekeeper.start() would install a poll interval and DOM bait.
-// HomepagePromos (also in Main's graph) reads canShowAds and nothing else.
-vi.mock("../../src/client/AdGatekeeper", () => ({
-  adGatekeeper: {
-    seed: vi.fn(),
-    start: vi.fn(),
-    stop: vi.fn(),
-    canShowAds: false,
-    whenClear: () => () => {},
-  },
-}));
 
 // Cuts the whole Pixi/WebGL/worker/audio in-game graph out of the import.
 // Transport/LocalServer only take the LobbyConfig *type* from this module,
@@ -131,11 +86,10 @@ function userMeFixture(): unknown {
 }
 
 describe("Client.initialize() booted from Main.ts module scope", () => {
-  let warnSpy: ReturnType<typeof vi.spyOn>;
   let logSpy: ReturnType<typeof vi.spyOn>;
 
   beforeAll(async () => {
-    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
     logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "info").mockImplementation(() => {});
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -152,10 +106,10 @@ describe("Client.initialize() booted from Main.ts module scope", () => {
       gitCommit: "DEV",
     };
 
-    // Without this the Turnstile prefetch polls for 10s and then rejects a
-    // stored promise nothing catches.
+    // Loaded, so the only thing that can keep the prefetch from rendering a
+    // widget is the dev check (see "skips the Turnstile prefetch in dev").
     (window as any).turnstile = {
-      render: () => "widget-1",
+      render: mocks.turnstileRender,
       execute: (
         _widgetId: string,
         opts: { callback: (token: string) => void },
@@ -211,8 +165,8 @@ describe("Client.initialize() booted from Main.ts module scope", () => {
     );
 
     // Real markup, so every unguarded getElementById/querySelector in
-    // initialize() (store modal, help modal, turnstile container, ...) finds
-    // the element it dereferences. Scripts hold EJS placeholders — drop them.
+    // initialize() (help modal, turnstile container, ...) finds the element
+    // it dereferences. Scripts hold EJS placeholders — drop them.
     const html = fs.readFileSync(
       path.resolve(__dirname, "../../index.html"),
       "utf8",
@@ -245,19 +199,23 @@ describe("Client.initialize() booted from Main.ts module scope", () => {
     await new Promise((resolve) => setTimeout(resolve, 25));
   }, 20_000);
 
-  // Returning to page-play schedules Main's 50ms store refresh. Let it run
-  // before jsdom is torn down, or it throws "customElements is not defined"
-  // as an unhandled error that fails the whole run.
+  // Let any timer the boot scheduled run before jsdom is torn down, or it
+  // throws "customElements is not defined" as an unhandled error that fails
+  // the whole run.
   afterAll(async () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
   });
 
-  it("runs the signed-out boot: onUserMe(false) and the missing-version warn", () => {
-    // renderNavVersion() === 0 branch (line 411).
-    expect(warnSpy).toHaveBeenCalledWith("Game version element not found");
-    // userAuth() === false → onUserMe(false) (line 735), which flips the ad
-    // entitlement on for a signed-out web player.
-    expect(window.adsEnabled).toBe(true);
+  it("runs the signed-out boot: onUserMe(false), with ads off", () => {
+    // userAuth() === false → onUserMe(false), which broadcasts the signed-out
+    // profile to the components listening for it.
+    expect(lastUserMeResponse()).toEqual({ response: false });
+    // No ads on this self-host, signed in or not.
+    expect(window.adsEnabled).toBe(false);
+  });
+
+  it("skips the Turnstile prefetch in dev, which never sends a token", () => {
+    expect(mocks.turnstileRender).not.toHaveBeenCalled();
   });
 
   it("clears the stale achievements.pushed record", () => {
@@ -424,7 +382,7 @@ describe("Client.initialize() booted from Main.ts module scope", () => {
     }
   }, 15_000);
 
-  it("logs the player id when a retry lands a signed-in userMe", async () => {
+  it("broadcasts the signed-in userMe a session retry lands", async () => {
     mocks.retrySteamSignIn.mockResolvedValueOnce({
       jwt: "jwt",
       claims: {},
@@ -432,55 +390,36 @@ describe("Client.initialize() booted from Main.ts module scope", () => {
     mocks.getUserMe.mockResolvedValueOnce(userMeFixture());
     document.dispatchEvent(new CustomEvent("desktop-session-retry"));
     await vi.waitFor(() =>
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Your player ID is public-id-1"),
-      ),
+      expect(lastUserMeResponse()).toEqual({ response: userMeFixture() }),
     );
+    expect(window.adsEnabled).toBe(false);
   });
 
   /**
    * OPE-439. The entry-point components dim their own buttons, but every join
-   * -- matchmaking's, a deep link, the host/join modals -- funnels through
-   * handleJoinLobby without passing one, so the funnel gate is the only thing
-   * that covers them. This is a WEB boot (no openfrontDesktop), which is
-   * precisely what the pre-existing desktop gate could not cover.
+   * -- a deep link, the host/join modals -- funnels through handleJoinLobby
+   * without passing one, so the funnel gate is the only thing that covers
+   * them. This is a WEB boot (no openfrontDesktop).
    *
-   * Driven through the real ServerList module: the reachability the funnel
-   * reads has to be the one the heartbeat actually produces.
+   * Driven through the real ServerList module. A self-host has no
+   * server-list API (serverListSite() is undefined), so nothing is ever
+   * fetched, no outage can be confirmed, and joins go through even with the
+   * network down.
    */
-  describe("the join funnel lets joins through while the server-list API is unreachable", () => {
+  describe("the join funnel lets joins through without a server-list API", () => {
     let ServerList: typeof import("../../src/client/ServerList");
     let messages: string[];
     let onMessage: EventListener;
+    let fetchMock: ReturnType<typeof vi.fn>;
 
-    /**
-     * Replaces the fetch stub and drives the module to the state named.
-     *
-     * An outage takes TWO unanswered attempts to confirm, and only the
-     * confirmed signal gates -- so reaching the state under test means making
-     * both, which the manual retry does without waiting out the heartbeat's
-     * retry interval.
-     */
-    async function settleReachability(reachable: boolean): Promise<void> {
-      vi.stubGlobal(
-        "fetch",
-        vi.fn(async () => {
-          if (!reachable) throw new TypeError("network down");
-          return {
-            ok: false,
-            status: 404,
-            statusText: "Not Found",
-            headers: new Map<string, string>(),
-            json: async () => ({}),
-            text: async () => "",
-            arrayBuffer: async () => new ArrayBuffer(0),
-          };
-        }),
-      );
+    async function settleWithNetworkDown(): Promise<void> {
+      fetchMock = vi.fn(async () => {
+        throw new TypeError("network down");
+      });
+      vi.stubGlobal("fetch", fetchMock);
       ServerList.resetServerList();
       await ServerList.ensureServerList();
-      if (!reachable) await ServerList.retryServerList();
-      expect(ServerList.backendUnreachableConfirmed()).toBe(!reachable);
+      await ServerList.retryServerList();
     }
 
     beforeAll(async () => {
@@ -506,39 +445,6 @@ describe("Client.initialize() booted from Main.ts module scope", () => {
       ServerList.resetServerList();
     });
 
-    /**
-     * The matchmaking modal's close() is the teardown its Back button uses:
-     * it shuts the queue socket and clears the watchdog. The funnel reaches
-     * for it only when it refuses a matchmade join, so it is also the
-     * sharpest witness that an outage does NOT refuse -- if the funnel had
-     * gated here, a queued player would have been dropped out of the queue.
-     *
-     * Spied rather than driven for real: opening the modal for real would
-     * open a queue WebSocket, and the claim under test is only whether any
-     * join reaches close().
-     */
-    async function spyOnMatchmakingModal(): Promise<{
-      close: ReturnType<typeof vi.spyOn>;
-      restore: () => void;
-    }> {
-      // It loads on demand; spy on the loaded one.
-      await loadModal("matchmaking-modal");
-      const modal = document.querySelector("matchmaking-modal") as unknown as {
-        isOpen: () => boolean;
-        close: () => void;
-      };
-      expect(modal).not.toBeNull();
-      const isOpen = vi.spyOn(modal, "isOpen").mockReturnValue(true);
-      const close = vi.spyOn(modal, "close").mockImplementation(() => {});
-      return {
-        close,
-        restore: () => {
-          close.mockRestore();
-          isOpen.mockRestore();
-        },
-      };
-    }
-
     /** The shape handleJoinLobby expects back; neither promise settles. */
     function stubJoinLobbyReturn(): void {
       mocks.joinLobby.mockReturnValue({
@@ -548,111 +454,33 @@ describe("Client.initialize() booted from Main.ts module scope", () => {
       });
     }
 
-    // OPE-439. A confirmed outage means the SERVER-LIST API has missed two
-    // heartbeats -- it says nothing about the game server this join is
-    // headed for, which the dispatching source has already reached. The
-    // sharpest case is this one: a player mid-game reloads during a
-    // list-API blip, JoinLobbyModal.checkActiveLobby reads `exists` from the
-    // game's own server, and refusing here would close the join modal,
-    // leave the lobby and reset the URL -- ejecting them from a game that
-    // was confirmed live moments earlier.
-    it("joins a private game the source already confirmed, outage and all", async () => {
-      await settleReachability(false);
-      logSpy.mockClear();
-      messages.length = 0;
-      mocks.joinLobby.mockClear();
-      stubJoinLobbyReturn();
-      const matchmaking = await spyOnMatchmakingModal();
-
-      try {
-        document.dispatchEvent(
-          new CustomEvent("join-lobby", {
-            detail: { gameID: "AbCd1234", source: "private" },
-            bubbles: true,
-          }),
-        );
-
-        // The far edge of the funnel, not the "joining lobby" log: that log
-        // is written BEFORE handleJoinLobby awaits userAuth, the username
-        // seed and the cosmetics refs, so a regression in that tail would
-        // leave a log assertion passing over a join that never happened.
-        await vi.waitFor(() =>
-          expect(mocks.joinLobby).toHaveBeenCalledTimes(1),
-        );
-        // ...and with the lobby that was dispatched, not some other one.
-        expect(mocks.joinLobby.mock.calls[0][1].gameID).toBe("AbCd1234");
-        // No toast either: the funnel refuses nothing, so it has nothing to
-        // report. The dimmed buttons and the status bar still carry the
-        // outage, and a refused BUTTON press still says why -- that half is
-        // covered in ReachabilityGating.
-        expect(messages).not.toContain(
-          translateText("common.backend_unreachable"),
-        );
-        // And nothing tore down the queue behind a player's back.
-        expect(matchmaking.close).not.toHaveBeenCalled();
-      } finally {
-        matchmaking.restore();
-      }
+    it("never asks for a server list, so no outage is ever confirmed", async () => {
+      await settleWithNetworkDown();
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(ServerList.backendReachable()).toBeNull();
+      expect(ServerList.backendUnreachableConfirmed()).toBe(false);
     });
 
-    it("does not cancel a live matchmaking queue during an outage", async () => {
-      // The same claim on the source that owns that modal: a matchmade join
-      // arriving during an outage is joined, not refused, so the queue
-      // teardown never runs.
-      await settleReachability(false);
-      messages.length = 0;
-      mocks.joinLobby.mockClear();
-      stubJoinLobbyReturn();
-      const matchmaking = await spyOnMatchmakingModal();
-
-      try {
-        document.dispatchEvent(
-          new CustomEvent("join-lobby", {
-            detail: { gameID: "AbCd1234", source: "matchmaking" },
-            bubbles: true,
-          }),
-        );
-
-        await vi.waitFor(() =>
-          expect(mocks.joinLobby).toHaveBeenCalledTimes(1),
-        );
-        expect(matchmaking.close).not.toHaveBeenCalled();
-        expect(messages).not.toContain(
-          translateText("common.backend_unreachable"),
-        );
-      } finally {
-        matchmaking.restore();
-      }
-    });
-
-    it("lets the same join through once the backend answers", async () => {
-      // The control. Without it a join refused for any unrelated reason --
-      // the username gate, a listener that never ran -- would make the cases
-      // above vacuous, since they too assert a join that goes through.
-      await settleReachability(true);
-      logSpy.mockClear();
+    it("joins a private game with the network down", async () => {
+      await settleWithNetworkDown();
       messages.length = 0;
       mocks.joinLobby.mockClear();
       stubJoinLobbyReturn();
 
       document.dispatchEvent(
         new CustomEvent("join-lobby", {
-          detail: { gameID: "AbCd1234", source: "matchmaking" },
+          detail: { gameID: "AbCd1234", source: "private" },
           bubbles: true,
         }),
       );
 
-      // The far edge of the funnel, not the "joining lobby" log: that log is
-      // written BEFORE handleJoinLobby awaits userAuth, the username seed and
-      // the cosmetics refs, so a regression anywhere in that tail would leave
-      // the log assertion passing over a join that never happened. joinLobby
-      // is the call that actually starts one.
+      // The far edge of the funnel, not the "joining lobby" log: that log
+      // is written BEFORE handleJoinLobby awaits userAuth, the username
+      // seed and the cosmetics refs, so a regression in that tail would
+      // leave a log assertion passing over a join that never happened.
       await vi.waitFor(() => expect(mocks.joinLobby).toHaveBeenCalledTimes(1));
       // ...and with the lobby that was dispatched, not some other one.
       expect(mocks.joinLobby.mock.calls[0][1].gameID).toBe("AbCd1234");
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining("joining lobby"),
-      );
       expect(messages).not.toContain(
         translateText("common.backend_unreachable"),
       );
@@ -727,12 +555,12 @@ describe("Client.initialize() booted from Main.ts module scope", () => {
     const gameStarting = vi.fn();
     document.addEventListener("game-starting", gameStarting);
     // Loaded on demand: the router loads a modal before opening it.
-    await loadModal("news-modal");
-    const news = document.querySelector("news-modal") as unknown as {
+    await loadModal("help-modal");
+    const help = document.querySelector("help-modal") as unknown as {
       close: () => void;
     };
-    const newsClose = vi
-      .spyOn(news, "close")
+    const helpClose = vi
+      .spyOn(help, "close")
       .mockImplementation(() =>
         history.replaceState(null, "", window.location.pathname),
       );
@@ -745,7 +573,7 @@ describe("Client.initialize() booted from Main.ts module scope", () => {
       ).toBe("dqKzit4cWu"),
     );
     expect(gameStarting).toHaveBeenCalledOnce();
-    expect(newsClose).toHaveBeenCalled();
+    expect(helpClose).toHaveBeenCalled();
     // A lobby modal is closed like at a game start: disarmed, so closing it
     // doesn't leave a lobby it never joined.
     expect(disarmSpy).toHaveBeenCalled();
@@ -753,7 +581,7 @@ describe("Client.initialize() booted from Main.ts module scope", () => {
     // Kept, so a reload opens the replay again.
     expect(window.location.hash).toBe("#replay-viewer=dqKzit4cWu");
     document.removeEventListener("game-starting", gameStarting);
-    newsClose.mockRestore();
+    helpClose.mockRestore();
     closeSpy.mockRestore();
     disarmSpy.mockRestore();
     closeWithoutLeavingSpy.mockRestore();

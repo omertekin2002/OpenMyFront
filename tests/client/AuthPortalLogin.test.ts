@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// The self-host's real API base is a same-origin endpoint that answers 404
+// (ApiBase.ts; see Api.test.ts). These tests exercise Auth's own requests
+// and claim checks against an API, so they pin the base they assert against.
+vi.mock("../../src/client/ApiBase", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/client/ApiBase")>()),
+  getApiBase: () => "https://api.openfront.dev",
+}));
+
 const portal = vi.hoisted(() => ({
   name: vi.fn((): "crazygames" | "poki" | null => null),
   getUserToken: vi.fn(async (): Promise<string | null> => null),

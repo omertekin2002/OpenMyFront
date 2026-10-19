@@ -37,18 +37,13 @@ vi.mock("../../../../src/client/InGameModal", () => ({
 }));
 
 import { GameType, PlayerType } from "@openfront/engine-api/game/GameTypes";
-import { EventBus } from "@openfront/shared/EventBus";
 import { actionButton } from "../../../../src/client/components/ui/ActionButton";
 import { PlayerModerationModal } from "../../../../src/client/hud/layers/PlayerModerationModal";
 import { PlayerPanel } from "../../../../src/client/hud/layers/PlayerPanel";
 import { PlayerReportModal } from "../../../../src/client/hud/layers/PlayerReportModal";
 import { showInGameConfirm } from "../../../../src/client/InGameModal";
 import { SendKickPlayerIntentEvent } from "../../../../src/client/LobbyEvents";
-import {
-  PlayerReportedEvent,
-  SendPlayerReportEvent,
-} from "../../../../src/client/Transport";
-import { showToast } from "../../../../src/client/Utils";
+import { SendPlayerReportEvent } from "../../../../src/client/Transport";
 import { PlayerView } from "../../../../src/client/view";
 
 const mockActionButton = actionButton as unknown as ReturnType<typeof vi.fn>;
@@ -93,14 +88,11 @@ describe("PlayerPanel - kick player moderation", () => {
       clientID: () => "client-2",
     } as unknown as PlayerView;
 
-    // The row also carries the report button, which anyone gets.
+    // No report button beside it on a self-host (see "report player" below).
     mockActionButton.mockClear();
     (panel as any).renderModeration(my, other, false);
-    expect(renderedLabels()).toEqual([
-      "player_panel.report",
-      "player_panel.moderation",
-    ]);
-    expect(mockActionButton.mock.calls[1][0]).toMatchObject({
+    expect(renderedLabels()).toEqual(["player_panel.moderation"]);
+    expect(mockActionButton.mock.calls[0][0]).toMatchObject({
       label: "player_panel.moderation",
       title: "player_panel.moderation",
       type: "red",
@@ -174,13 +166,11 @@ describe("PlayerPanel - report player", () => {
     mockActionButton.mockClear();
   });
 
-  test("anyone can report another human in a multiplayer game", () => {
+  // Reports ride the archived game record to the central moderation API, and
+  // a self-host archives nothing, so the button is never offered.
+  test("offers no report button, even for another human in a multiplayer game", () => {
     (panel as any).renderModeration(me, other, false);
-    expect(renderedLabels()).toEqual(["player_panel.report"]);
-    expect(mockActionButton.mock.calls[0][0]).toMatchObject({
-      type: "red",
-      disabled: false,
-    });
+    expect(mockActionButton).not.toHaveBeenCalled();
   });
 
   test("no report button in singleplayer, replays, once the game is over, for yourself, or for a nation", () => {
@@ -209,33 +199,6 @@ describe("PlayerPanel - report player", () => {
     } as unknown as PlayerView;
     (panel as any).renderModeration(me, nation, false);
     expect(mockActionButton).not.toHaveBeenCalled();
-  });
-
-  test("locks the button only once Transport confirms the report was sent", () => {
-    const eventBus = new EventBus();
-    panel.initEventBus(eventBus);
-
-    (panel as any).openReport({ stopPropagation: vi.fn() }, other);
-    expect((panel as any).reportTarget).toBe(other);
-    expect((panel as any).suppressNextHide).toBe(true);
-
-    // Submitting alone (e.g. while the socket is reconnecting and the
-    // report is dropped) does not lock the button.
-    (panel as any).closeReport();
-    (panel as any).renderModeration(me, other, false);
-    expect(mockActionButton.mock.calls[0][0]).toMatchObject({
-      label: "player_panel.report",
-      disabled: false,
-    });
-
-    mockActionButton.mockClear();
-    eventBus.emit(new PlayerReportedEvent("client-2"));
-    (panel as any).renderModeration(me, other, false);
-    expect(mockActionButton.mock.calls[0][0]).toMatchObject({
-      label: "player_panel.reported",
-      disabled: true,
-    });
-    expect(showToast).toHaveBeenCalledWith("player_panel.report_sent", "green");
   });
 });
 

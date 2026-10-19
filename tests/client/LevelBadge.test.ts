@@ -11,13 +11,11 @@ import {
   GameXpResponseSchema,
   type XpBreakdown,
 } from "@openfront/shared/ApiSchemas";
-import { render as renderTemplate } from "lit";
 import {
   LevelBadge,
   levelBadgeAccent,
   loadLargeBadgeIcons,
 } from "../../src/client/components/LevelBadge";
-import { xpBar } from "../../src/client/components/XpBar";
 import {
   apportionXp,
   ineligibleReasonKey,
@@ -510,28 +508,5 @@ describe("progression helpers", () => {
     );
     expect(levelRewardReasonKey("subscription_daily")).toBeUndefined();
     expect(levelRewardReasonKey("toString")).toBeUndefined();
-  });
-});
-
-describe("xpBar", () => {
-  function bar(percent: number): { now: string | null; width: string } {
-    const host = document.createElement("div");
-    renderTemplate(xpBar(percent), host);
-    const fill = host.querySelector<HTMLElement>("[data-xp-bar-fill]")!;
-    return {
-      now: host.querySelector("[data-xp-bar]")!.getAttribute("aria-valuenow"),
-      width: fill.style.width,
-    };
-  }
-
-  it("keeps the fill and value within 0..100", () => {
-    expect(bar(42)).toEqual({ now: "42", width: "42%" });
-    expect(bar(150)).toEqual({ now: "100", width: "100%" });
-    expect(bar(-20)).toEqual({ now: "0", width: "0%" });
-  });
-
-  it("draws an empty bar for a non-number", () => {
-    expect(bar(Number.NaN)).toEqual({ now: "0", width: "0%" });
-    expect(bar(Number.POSITIVE_INFINITY)).toEqual({ now: "0", width: "0%" });
   });
 });

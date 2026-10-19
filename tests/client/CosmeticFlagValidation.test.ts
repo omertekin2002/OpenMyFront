@@ -130,17 +130,16 @@ describe("flag validation against an unknown profile", () => {
     expect(new UserSettings().getFlag()).toBe("flag:donator");
   });
 
-  // The other half of the same decision: keeping the selection must not mean
-  // claiming it. The server does not strip an unverifiable cosmetic ref — it
-  // closes the socket with CosmeticsForbidden — so sending a flag we could
-  // not verify would trade a lost flag for an unjoinable multiplayer.
-  it("does not send a flag it could not verify", async () => {
+  // Self-host: every catalog cosmetic is free, and the server checks refs
+  // against the same bundled catalog (SelfHostPrivilegeChecker), so a flag
+  // the profile can't vouch for is still sent rather than withheld.
+  it("sends a catalog flag even when the profile cannot be resolved", async () => {
     selectFlag();
     vi.mocked(getUserMe).mockResolvedValue(false);
 
     const refs = await getPlayerCosmeticsRefs();
 
-    expect(refs.flag).toBeUndefined();
+    expect(refs.flag).toBe("flag:donator");
   });
 
   // The narrow case that actually loses data. A flag written before per-player
@@ -156,17 +155,16 @@ describe("flag validation against an unknown profile", () => {
     expect(localStorage.getItem(FLAG_KEY)).toBe("flag:donator");
   });
 
-  // The other half: when the profile does answer, its answer is still
-  // authoritative. Skipping validation on an unknown profile must not become
-  // skipping validation altogether.
-  it("still clears a flag the profile says the player does not own", async () => {
+  // Self-host: the profile's flares don't gate anything, so a flag it has no
+  // flare for is kept and sent like any other catalog flag.
+  it("keeps and sends a catalog flag the profile has no flare for", async () => {
     selectFlag();
     vi.mocked(getUserMe).mockResolvedValue(userWithFlares([]));
 
     const refs = await getPlayerCosmeticsRefs();
 
-    expect(refs.flag).toBeUndefined();
-    expect(new UserSettings().getFlag()).toBeNull();
+    expect(refs.flag).toBe("flag:donator");
+    expect(new UserSettings().getFlag()).toBe("flag:donator");
   });
 
   it("keeps a flag the profile says the player owns", async () => {
@@ -222,7 +220,9 @@ describe("pattern, skin, crown, and effect validation against unknown and verifi
     vi.restoreAllMocks();
   });
 
-  it("keeps saved pattern, crown, and effect when the profile cannot be resolved", async () => {
+  // Self-host: every catalog cosmetic is free and the server checks refs
+  // against the same bundled catalog, so an unknown profile withholds nothing.
+  it("keeps and sends pattern, crown, and effect when the profile cannot be resolved", async () => {
     const s = new UserSettings();
     s.setSelectedPatternName("pattern:stripes:fire");
     s.setSelectedCrownName("golden");
@@ -231,28 +231,28 @@ describe("pattern, skin, crown, and effect validation against unknown and verifi
 
     const refs = await getPlayerCosmeticsRefs();
 
-    expect(refs.patternName).toBeUndefined();
-    expect(refs.patternColorPaletteName).toBeUndefined();
-    expect(refs.crownName).toBeUndefined();
-    expect(refs.effects).toBeUndefined();
+    expect(refs.patternName).toBe("stripes");
+    expect(refs.patternColorPaletteName).toBe("fire");
+    expect(refs.crownName).toBe("golden");
+    expect(refs.effects).toEqual({ transportShipTrail: "spectrum" });
 
     expect(s.getSelectedPatternName(catalog as any)?.name).toBe("stripes");
     expect(s.getSelectedCrownName()).toBe("golden");
     expect(s.getSelectedEffects()).toEqual({ transportShipTrail: "spectrum" });
   });
 
-  it("keeps saved skin when the profile cannot be resolved", async () => {
+  it("keeps and sends a skin when the profile cannot be resolved", async () => {
     const s = new UserSettings();
     s.setSelectedPatternName("skin:cool");
     vi.mocked(getUserMe).mockResolvedValue(false);
 
     const refs = await getPlayerCosmeticsRefs();
 
-    expect(refs.skinName).toBeUndefined();
+    expect(refs.skinName).toBe("cool");
     expect(s.getSelectedSkinName()).toBe("cool");
   });
 
-  it("clears pattern, crown, and effect when the profile lacks required flares", async () => {
+  it("keeps and sends pattern, crown, and effect the profile has no flares for", async () => {
     const s = new UserSettings();
     s.setSelectedPatternName("pattern:stripes:fire");
     s.setSelectedCrownName("golden");
@@ -261,25 +261,25 @@ describe("pattern, skin, crown, and effect validation against unknown and verifi
 
     const refs = await getPlayerCosmeticsRefs();
 
-    expect(refs.patternName).toBeUndefined();
-    expect(refs.patternColorPaletteName).toBeUndefined();
-    expect(refs.crownName).toBeUndefined();
-    expect(refs.effects).toBeUndefined();
+    expect(refs.patternName).toBe("stripes");
+    expect(refs.patternColorPaletteName).toBe("fire");
+    expect(refs.crownName).toBe("golden");
+    expect(refs.effects).toEqual({ transportShipTrail: "spectrum" });
 
-    expect(s.getSelectedPatternName(catalog as any)).toBeNull();
-    expect(s.getSelectedCrownName()).toBeNull();
-    expect(s.getSelectedEffects()).toEqual({});
+    expect(s.getSelectedPatternName(catalog as any)?.name).toBe("stripes");
+    expect(s.getSelectedCrownName()).toBe("golden");
+    expect(s.getSelectedEffects()).toEqual({ transportShipTrail: "spectrum" });
   });
 
-  it("clears skin when the profile lacks required skin flare", async () => {
+  it("keeps and sends a skin the profile has no flare for", async () => {
     const s = new UserSettings();
     s.setSelectedPatternName("skin:cool");
     vi.mocked(getUserMe).mockResolvedValue(userWithFlares([]));
 
     const refs = await getPlayerCosmeticsRefs();
 
-    expect(refs.skinName).toBeUndefined();
-    expect(s.getSelectedSkinName()).toBeNull();
+    expect(refs.skinName).toBe("cool");
+    expect(s.getSelectedSkinName()).toBe("cool");
   });
 
   it("keeps and sends pattern, crown, and effect when the profile owns flares", async () => {

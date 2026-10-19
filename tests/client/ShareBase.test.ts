@@ -1,10 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import {
-  ClientEnv,
-  deriveShareBase,
-  deriveShareOrigin,
-} from "../../src/client/ClientEnv";
-import { playerProfileUrl } from "../../src/client/utilities/PlayerProfileUrl";
+import { describe, expect, it } from "vitest";
+import { deriveShareBase, deriveShareOrigin } from "../../src/client/ClientEnv";
 
 // These two answer "where should a link that LEAVES this client point?" — the
 // lobby invite a host copies, the game link in a history row, the profile link
@@ -134,32 +129,5 @@ describe("deriveShareBase", () => {
     );
     expect(base).toBe("https://openfront.io/");
     expect(base).not.toContain("index.html");
-  });
-});
-
-describe("playerProfileUrl", () => {
-  it("is the site's /player/<id> path off the share origin, not off window.location", () => {
-    const shareOrigin = vi
-      .spyOn(ClientEnv, "shareOrigin")
-      .mockReturnValue("https://openfront.io");
-    try {
-      expect(playerProfileUrl("aB3dE5fX")).toBe(
-        "https://openfront.io/player/aB3dE5fX",
-      );
-      expect(playerProfileUrl("a+b")).toBe("https://openfront.io/player/a%2Bb");
-    } finally {
-      shareOrigin.mockRestore();
-    }
-  });
-
-  it("drops the page's own path (a link copied from /c/CODE is still the profile)", () => {
-    history.replaceState(null, "", "/c/abc");
-    try {
-      expect(playerProfileUrl("aB3dE5fX")).toBe(
-        `${window.location.origin}/player/aB3dE5fX`,
-      );
-    } finally {
-      history.replaceState(null, "", "/");
-    }
   });
 });

@@ -390,9 +390,10 @@ describe("PublicAssetManifest", () => {
     const index = buildRootFilesIndex(getPublicDir(path.resolve("resources")));
     expect(index["privacy-policy.html"]).toBe("text/html; charset=utf-8");
     expect(index["terms-of-service.html"]).toBe("text/html; charset=utf-8");
+    // OpenFront's press kit and Apple Pay domain file aren't part of this fork.
+    expect(index["press/"]).toBeUndefined();
     expect(
       index[".well-known/apple-developer-merchantid-domain-association"],
-    ).toBe("text/plain; charset=utf-8");
-    expect(index["press/"]).toBe("text/html; charset=utf-8");
+    ).toBeUndefined();
   });
 });

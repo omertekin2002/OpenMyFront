@@ -92,12 +92,12 @@ describe("subscription tier listing per rail", () => {
     delete (window as { openfrontDesktop?: unknown }).openfrontDesktop;
   });
 
-  it("asks for the rail this device checks out on", async () => {
+  it("fetches the bundled catalog whichever rail this device checks out on", async () => {
+    // Self-host: no central API, so every rail reads the one catalog served
+    // as a static asset (resources/cosmetics/cosmetics.json).
     expect(tierListingRail()).toBe("web");
     await fetchCosmetics();
-    expect(fetchMock.mock.calls[0][0]).toBe(
-      "https://api.test/cosmetics.json?rail=web",
-    );
+    expect(fetchMock.mock.calls[0][0]).toBe("/cosmetics/cosmetics.json");
 
     invalidateCosmetics();
     (window as { openfrontDesktop?: unknown }).openfrontDesktop = {
@@ -105,9 +105,7 @@ describe("subscription tier listing per rail", () => {
     };
     expect(tierListingRail()).toBe("steam");
     await fetchCosmetics();
-    expect(fetchMock.mock.calls[1][0]).toBe(
-      "https://api.test/cosmetics.json?rail=steam",
-    );
+    expect(fetchMock.mock.calls[1][0]).toBe("/cosmetics/cosmetics.json");
   });
 
   it("renders Steam Plus alone when it is all the rail lists", async () => {

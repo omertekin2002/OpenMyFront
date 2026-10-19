@@ -129,14 +129,16 @@ describe("resolveCosmetics", () => {
       expect(patternItems[0].key).toBe("pattern:stripes");
     });
 
-    test("purchasable when user has no flares and currency price exists", () => {
+    // Self-host: every cosmetic is free, so patterns, flags and crowns are
+    // owned whatever the flares, price, affiliate code or archive state.
+    test("owned when user has no flares, even with a currency price", () => {
       const cosmetics = makeCosmetics({
         patterns: { stripes: pattern as any },
         colorPalettes,
       });
       const result = resolveCosmetics(cosmetics, makeUserMe(), null);
       const redItem = result.find((r) => r.key === "pattern:stripes:red");
-      expect(redItem?.relationship).toBe("purchasable");
+      expect(redItem?.relationship).toBe("owned");
     });
 
     test("owned when user has specific flare", () => {
@@ -167,7 +169,7 @@ describe("resolveCosmetics", () => {
       expect(redItem?.relationship).toBe("owned");
     });
 
-    test("blocked when affiliate code mismatch", () => {
+    test("owned when affiliate code mismatches", () => {
       const affiliatePattern = { ...pattern, affiliateCode: "partner1" };
       const cosmetics = makeCosmetics({
         patterns: { stripes: affiliatePattern as any },
@@ -175,10 +177,10 @@ describe("resolveCosmetics", () => {
       });
       const result = resolveCosmetics(cosmetics, makeUserMe(), null);
       const redItem = result.find((r) => r.key === "pattern:stripes:red");
-      expect(redItem?.relationship).toBe("blocked");
+      expect(redItem?.relationship).toBe("owned");
     });
 
-    test("purchasable when affiliate code matches", () => {
+    test("owned when affiliate code matches", () => {
       const affiliatePattern = { ...pattern, affiliateCode: "partner1" };
       const cosmetics = makeCosmetics({
         patterns: { stripes: affiliatePattern as any },
@@ -186,10 +188,10 @@ describe("resolveCosmetics", () => {
       });
       const result = resolveCosmetics(cosmetics, makeUserMe(), "partner1");
       const redItem = result.find((r) => r.key === "pattern:stripes:red");
-      expect(redItem?.relationship).toBe("purchasable");
+      expect(redItem?.relationship).toBe("owned");
     });
 
-    test("archived palette is blocked unless owned", () => {
+    test("archived palette is owned without its flare", () => {
       const archivedPattern = {
         ...pattern,
         colorPalettes: [{ name: "old", isArchived: true }],
@@ -206,7 +208,7 @@ describe("resolveCosmetics", () => {
       });
       const result = resolveCosmetics(cosmetics, makeUserMe(), null);
       const oldItem = result.find((r) => r.key === "pattern:stripes:old");
-      expect(oldItem?.relationship).toBe("blocked");
+      expect(oldItem?.relationship).toBe("owned");
     });
 
     test("archived palette is owned when user has specific flare", () => {
@@ -257,13 +259,13 @@ describe("resolveCosmetics", () => {
       expect(flagItem?.colorPalette).toBeNull();
     });
 
-    test("purchasable when not logged in and currency price exists", () => {
+    test("owned when not logged in, even with a currency price", () => {
       const cosmetics = makeCosmetics({
         flags: { cool_flag: flag as any },
       });
       const result = resolveCosmetics(cosmetics, false, null);
       const flagItem = result.find((r) => r.key === "flag:cool_flag");
-      expect(flagItem?.relationship).toBe("purchasable");
+      expect(flagItem?.relationship).toBe("owned");
     });
 
     test("owned with wildcard flare", () => {
@@ -288,14 +290,14 @@ describe("resolveCosmetics", () => {
       expect(flagItem?.relationship).toBe("owned");
     });
 
-    test("blocked with no currency price", () => {
+    test("owned with no currency price", () => {
       const freeFlag = { ...flag, priceHard: undefined };
       const cosmetics = makeCosmetics({
         flags: { cool_flag: freeFlag as any },
       });
       const result = resolveCosmetics(cosmetics, makeUserMe(), null);
       const flagItem = result.find((r) => r.key === "flag:cool_flag");
-      expect(flagItem?.relationship).toBe("blocked");
+      expect(flagItem?.relationship).toBe("owned");
     });
   });
 
@@ -322,13 +324,13 @@ describe("resolveCosmetics", () => {
       expect(crownItem?.colorPalette).toBeNull();
     });
 
-    test("purchasable when user has no flares and priceHard exists", () => {
+    test("owned when user has no flares, even with a priceHard", () => {
       const cosmetics = makeCosmetics({
         crowns: { gold_crown: crown as any },
       });
       const result = resolveCosmetics(cosmetics, makeUserMe(), null);
       const crownItem = result.find((r) => r.key === "crown:gold_crown");
-      expect(crownItem?.relationship).toBe("purchasable");
+      expect(crownItem?.relationship).toBe("owned");
     });
 
     test("owned with wildcard flare", () => {
@@ -353,7 +355,7 @@ describe("resolveCosmetics", () => {
       expect(crownItem?.relationship).toBe("owned");
     });
 
-    test("blocked with no currency price", () => {
+    test("owned with no currency price", () => {
       const freeCrown = {
         ...crown,
         priceHard: undefined,
@@ -363,7 +365,7 @@ describe("resolveCosmetics", () => {
       });
       const result = resolveCosmetics(cosmetics, makeUserMe(), null);
       const crownItem = result.find((r) => r.key === "crown:gold_crown");
-      expect(crownItem?.relationship).toBe("blocked");
+      expect(crownItem?.relationship).toBe("owned");
     });
   });
 
@@ -544,9 +546,10 @@ describe("resolveCosmetics cosmetic packs", () => {
   });
 
   test("includes items that are not sold on their own", () => {
-    // pirate has no price of its own (a pack exclusive) — still a pack item.
+    // pirate has no price of its own (a pack exclusive) — still a pack item,
+    // and owned like every catalog cosmetic on a self-host.
     const resolved = packOf(resolveCosmetics(catalog(), makeUserMe(), null));
-    expect(resolved.packItems?.[1].relationship).toBe("blocked");
+    expect(resolved.packItems?.[1].relationship).toBe("owned");
     expect(resolved.relationship).toBe("purchasable");
   });
 

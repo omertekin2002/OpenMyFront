@@ -6,7 +6,6 @@ import {
   matchesStoreItem,
   storeRouteFor,
 } from "../../src/client/EquippedCosmetics";
-import { subTabForItem } from "../../src/client/Store";
 
 function catalogEntry(
   key: string,
@@ -158,12 +157,5 @@ describe("store deep links", () => {
     );
     expect(matchesStoreItem("crown:gold", "crown:gold")).toBe(true);
     expect(matchesStoreItem("crown:gold", "crown:silver")).toBe(false);
-  });
-
-  it("opens the sub-tab holding the item", () => {
-    expect(subTabForItem("crown:gold")).toBe("crowns");
-    expect(subTabForItem("flag:pirate")).toBe("flags");
-    expect(subTabForItem("pattern:hearts:red")).toBe("patterns");
-    expect(subTabForItem("skin:mountain")).toBe("patterns");
   });
 });

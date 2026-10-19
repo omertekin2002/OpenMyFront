@@ -22,7 +22,6 @@ vi.mock("../../src/client/ServerList", async (importOriginal) => {
 import { createLobby } from "../../src/client/Api";
 import { ClientEnv } from "../../src/client/ClientEnv";
 import { JoinLobbyModal } from "../../src/client/JoinLobbyModal";
-import { MatchmakingModal } from "../../src/client/Matchmaking";
 
 // Every remaining caller of the game server's HTTP API, driven through real
 // production code. Each one used to build a relative URL, which silently
@@ -122,21 +121,6 @@ describe("JoinLobbyModal.checkActiveLobby", () => {
         checkActiveLobby(id: string): Promise<boolean>;
       }
     ).checkActiveLobby("game-1");
-    expect(lastUrl()).toBe(
-      `https://${SERVER_HOST}/${ClientEnv.workerPath("game-1")}/api/game/game-1/exists`,
-    );
-  });
-});
-
-describe("MatchmakingModal.checkGame", () => {
-  it("polls the configured game server for the matched game", async () => {
-    const modal = new MatchmakingModal();
-    const internals = modal as unknown as {
-      gameID: string | null;
-      checkGame(): Promise<void>;
-    };
-    internals.gameID = "game-1";
-    await internals.checkGame();
     expect(lastUrl()).toBe(
       `https://${SERVER_HOST}/${ClientEnv.workerPath("game-1")}/api/game/game-1/exists`,
     );

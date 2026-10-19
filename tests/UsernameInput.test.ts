@@ -104,8 +104,32 @@ async function signIn(el: UsernameInputEl, user: UserMeResponse) {
 const q = <T extends HTMLElement>(el: UsernameInputEl, sel: string) =>
   el.querySelector<T>(sel);
 
+// The verified-name toggle's two states upstream. This self-host has no
+// toggle (verified names need an account and a subscription), so the tests
+// below assert that neither ever renders.
 const TOGGLE = 'button[aria-pressed="false"]';
 const CHANGE = 'button[aria-label="username.verified_use_custom"]';
+
+// Types a tag into the picker's free-text field — the only way to set one on
+// this self-host, which has no list of the player's clans to pick from — and
+// closes the picker again.
+async function typeTag(el: UsernameInputEl, value: string) {
+  q(el, "#clan-tag-button")!.click();
+  await el.updateComplete;
+  const input = q<HTMLInputElement>(el, "#clan-tag-manual")!;
+  input.value = value;
+  input.dispatchEvent(new Event("input"));
+  await el.updateComplete;
+  q(el, "#clan-tag-button")!.click();
+  await el.updateComplete;
+}
+
+// Types into the open picker's free-text field.
+function typeIntoPicker(el: UsernameInputEl, value: string) {
+  const input = q<HTMLInputElement>(el, "#clan-tag-manual")!;
+  input.value = value;
+  input.dispatchEvent(new Event("input"));
+}
 
 beforeEach(() => {
   localStorage.clear();
@@ -133,7 +157,7 @@ describe("UsernameInput clan tag picker", () => {
     expect(q(el, "#clan-tag-menu")).toBeNull();
   });
 
-  it("lists the player's clans and selects one without typing", async () => {
+  it("offers only a free-text tag, not a list of the player's clans", async () => {
     const el = await mount();
     await signIn(
       el,
@@ -146,40 +170,40 @@ describe("UsernameInput clan tag picker", () => {
     q(el, "#clan-tag-button")!.click();
     await el.updateComplete;
 
-    const rows = el.querySelectorAll("#clan-tag-menu .max-h-56 button");
-    expect(rows).toHaveLength(2);
-    expect(rows[0].textContent).toContain("OpenFront Official");
+    // No clan list or clan browser on this self-host: the menu is the tag
+    // field alone (Clear joins it once a tag is set).
+    const menu = q(el, "#clan-tag-menu")!;
+    expect(menu.querySelector("#clan-tag-manual")).not.toBeNull();
+    expect(menu.querySelectorAll("button")).toHaveLength(0);
+    expect(menu.textContent).not.toContain("Wolfpack");
 
-    (rows[1] as HTMLElement).click();
+    typeIntoPicker(el, "WOLF");
     await el.updateComplete;
-
     expect(el.getClanTag()).toBe("WOLF");
     expect(localStorage.getItem("clanTag")).toBe("WOLF");
-    // Picking closes the menu.
-    expect(q(el, "#clan-tag-menu")).toBeNull();
   });
 
   it("clears the tag from the menu", async () => {
     const el = await mount();
     await signIn(el, premiumUser([{ tag: "OF", name: "OpenFront Official" }]));
+    const clearButton = () =>
+      [...el.querySelectorAll("#clan-tag-menu button")].find((b) =>
+        b.textContent?.includes("username.clan_clear"),
+      ) as HTMLElement | undefined;
 
-    q(el, "#clan-tag-button")!.click();
-    await el.updateComplete;
-    (
-      el.querySelector("#clan-tag-menu .max-h-56 button") as HTMLElement
-    ).click();
-    await el.updateComplete;
+    await typeTag(el, "OF");
     expect(el.getClanTag()).toBe("OF");
 
     q(el, "#clan-tag-button")!.click();
     await el.updateComplete;
-    const clear = [...el.querySelectorAll("#clan-tag-menu button")].find((b) =>
-      b.textContent?.includes("username.clan_clear"),
-    ) as HTMLElement;
-    clear.click();
+    clearButton()!.click();
     await el.updateComplete;
 
     expect(el.getClanTag()).toBeNull();
+    // With no tag left, there is nothing to clear.
+    q(el, "#clan-tag-button")!.click();
+    await el.updateComplete;
+    expect(clearButton()).toBeUndefined();
   });
 
   it("keeps the typed tag in the free-text field when it matches an own clan", async () => {
@@ -229,40 +253,10 @@ describe("UsernameInput clan tag picker", () => {
     expect(q(el, "#clan-tag-menu")).toBeNull();
   });
 
-  it("picks up a clan joined in the clan modal", async () => {
-    const el = await mount();
-    await signIn(el, premiumUser());
-    q(el, "#clan-tag-button")!.click();
-    await el.updateComplete;
-    expect(el.textContent).toContain("username.clan_none_joined");
-
-    // The clan modal invalidates the /users/@me cache and announces the join;
-    // no fresh userMeResponse is dispatched, so the component must refetch.
-    getUserMe.mockResolvedValue(
-      premiumUser([{ tag: "NEW", name: "Newcomers" }]),
-    );
-    document.dispatchEvent(
-      new CustomEvent("clan-joined", {
-        detail: { tag: "NEW" },
-        bubbles: true,
-        composed: true,
-      }),
-    );
-    await new Promise((r) => setTimeout(r, 0));
-    await el.updateComplete;
-
-    expect(el.textContent).toContain("Newcomers");
-  });
-
   it("drops the selected tag when that clan is left", async () => {
     const el = await mount();
     await signIn(el, premiumUser([{ tag: "OF", name: "OpenFront Official" }]));
-    q(el, "#clan-tag-button")!.click();
-    await el.updateComplete;
-    (
-      el.querySelector("#clan-tag-menu .max-h-56 button") as HTMLElement
-    ).click();
-    await el.updateComplete;
+    await typeTag(el, "OF");
     expect(el.getClanTag()).toBe("OF");
 
     getUserMe.mockResolvedValue(premiumUser());
@@ -282,12 +276,7 @@ describe("UsernameInput clan tag picker", () => {
   it("drops the selected tag when that clan is disbanded", async () => {
     const el = await mount();
     await signIn(el, premiumUser([{ tag: "OF", name: "OpenFront Official" }]));
-    q(el, "#clan-tag-button")!.click();
-    await el.updateComplete;
-    (
-      el.querySelector("#clan-tag-menu .max-h-56 button") as HTMLElement
-    ).click();
-    await el.updateComplete;
+    await typeTag(el, "OF");
     expect(el.getClanTag()).toBe("OF");
 
     // A leader dissolving their own clan emits clan-disbanded, not clan-left.
@@ -369,26 +358,22 @@ describe("UsernameInput clan tag picker", () => {
 
     expect(el.isVerified()).toBe(true);
     expect(el.getUsername()).toBe("RyanTheGreat");
+    // Nor does the picker's own refresh, which fails the same way.
     q(el, "#clan-tag-button")!.click();
     await settle();
     await el.updateComplete;
-    expect(el.textContent).toContain("OpenFront Official");
+    expect(el.isVerified()).toBe(true);
   });
 
   it("leaves the selected tag playable when the refresh fails", async () => {
     const el = await mount();
     await signIn(el, premiumUser([{ tag: "OF", name: "OpenFront Official" }]));
-    q(el, "#clan-tag-button")!.click();
-    await settle();
-    await el.updateComplete;
-    (
-      el.querySelector("#clan-tag-menu .max-h-56 button") as HTMLElement
-    ).click();
+    await typeTag(el, "OF");
     await settle();
     await el.updateComplete;
     expect(el.canPlay()).toBe(true);
 
-    // Past the legitimate check that selecting the clan just ran.
+    // Past any check that setting the tag ran.
     checkClanTagOwnership.mockClear();
     // The ownership check reads getUserMe itself, so against a cached false it
     // would take the player for a member of nothing and reject their own clan.
@@ -407,7 +392,7 @@ describe("UsernameInput clan tag picker", () => {
     expect(el.getClanTag()).toBe("OF");
   });
 
-  it("selects a listed clan without asking the API", async () => {
+  it("accepts a typed tag of the player's own clan without asking the API", async () => {
     const el = await mount();
     await signIn(el, premiumUser([{ tag: "OF", name: "OpenFront Official" }]));
     q(el, "#clan-tag-button")!.click();
@@ -415,17 +400,15 @@ describe("UsernameInput clan tag picker", () => {
     await el.updateComplete;
 
     // The profile refresh fails while the picker is open, so getUserMe now
-    // caches false — but the rows on screen came from the retained snapshot,
-    // and picking one has to honour it. Asking the API would reject the
-    // player's own clan.
+    // caches false — but the retained snapshot still lists the clan, and a
+    // tag of it has to honour that. Asking the API would reject the player's
+    // own clan.
     getUserMe.mockResolvedValue(false);
     checkClanTagOwnership.mockResolvedValue({
       tag: null,
       error: "username.tag_not_member",
     });
-    (
-      el.querySelector("#clan-tag-menu .max-h-56 button") as HTMLElement
-    ).click();
+    typeIntoPicker(el, "OF");
     await settle();
     await el.updateComplete;
 
@@ -440,7 +423,8 @@ describe("UsernameInput clan tag picker", () => {
     await signIn(el, premiumUser([{ tag: "OLD", name: "Old Clan" }]));
 
     // The picker's uncached refresh is slow; a clan join lands while it is
-    // still in flight. The stale response must not reinstate the old list.
+    // still in flight. The stale response must not reinstate the old
+    // membership.
     let releaseSlow: (v: UserMeResponse) => void = () => {};
     getUserMe.mockReturnValueOnce(
       new Promise<UserMeResponse>((r) => (releaseSlow = r)),
@@ -460,14 +444,17 @@ describe("UsernameInput clan tag picker", () => {
     );
     await settle();
     await el.updateComplete;
-    expect(el.textContent).toContain("Newcomers");
 
     releaseSlow(premiumUser([{ tag: "OLD", name: "Old Clan" }]));
     await settle();
     await el.updateComplete;
 
-    expect(el.textContent).toContain("Newcomers");
-    expect(el.textContent).not.toContain("Old Clan");
+    // Only the clans in the snapshot skip the API's ownership check: NEW
+    // does, and OLD must not have been put back by the late response.
+    typeIntoPicker(el, "NEW");
+    expect(checkClanTagOwnership).not.toHaveBeenCalled();
+    typeIntoPicker(el, "OLD");
+    expect(checkClanTagOwnership).toHaveBeenCalledWith("OLD");
   });
 
   it("still clears account state on an explicit sign-out", async () => {
@@ -501,19 +488,18 @@ describe("UsernameInput clan tag picker", () => {
     await el.updateComplete;
 
     expect(invalidateUserMe).toHaveBeenCalled();
-    expect(el.textContent).toContain("Newcomers");
-    expect(el.textContent).not.toContain("OpenFront Official");
+    // The fresh membership, not the page-load one, now answers the ownership
+    // check: a tag of the new clan skips the API, the old one does not.
+    typeIntoPicker(el, "NEW");
+    expect(checkClanTagOwnership).not.toHaveBeenCalled();
+    typeIntoPicker(el, "OF");
+    expect(checkClanTagOwnership).toHaveBeenCalledWith("OF");
   });
 
   it("leaves an unrelated clan's tag alone", async () => {
     const el = await mount();
     await signIn(el, premiumUser([{ tag: "OF", name: "OpenFront Official" }]));
-    q(el, "#clan-tag-button")!.click();
-    await el.updateComplete;
-    (
-      el.querySelector("#clan-tag-menu .max-h-56 button") as HTMLElement
-    ).click();
-    await el.updateComplete;
+    await typeTag(el, "OF");
 
     document.dispatchEvent(
       new CustomEvent("clan-left", {
@@ -526,48 +512,6 @@ describe("UsernameInput clan tag picker", () => {
     await el.updateComplete;
 
     expect(el.getClanTag()).toBe("OF");
-  });
-
-  it("opens the clan modal on its browse tab from Browse clans", async () => {
-    // Registered, not just created: the component waits on whenDefined, the
-    // same way the existing join-modal path does.
-    const opened: unknown[] = [];
-    if (!customElements.get("clan-modal")) {
-      customElements.define(
-        "clan-modal",
-        class extends HTMLElement {
-          open(args: unknown) {
-            opened.push(args);
-          }
-        },
-      );
-    }
-    const modal = document.createElement("clan-modal") as HTMLElement & {
-      open: (args: unknown) => void;
-    };
-    // The registered class pushes to whichever `opened` array the current run
-    // closed over, so re-point it for this instance.
-    modal.open = (args) => opened.push(args);
-    document.body.appendChild(modal);
-    const pages: string[] = [];
-    (window as unknown as { showPage?: (p: string) => void }).showPage = (p) =>
-      pages.push(p);
-
-    const el = await mount();
-    await signIn(el, premiumUser());
-    q(el, "#clan-tag-button")!.click();
-    await el.updateComplete;
-    const browse = [...el.querySelectorAll("#clan-tag-menu button")].find((b) =>
-      b.textContent?.includes("username.clan_browse"),
-    ) as HTMLElement;
-    browse.click();
-    await customElements.whenDefined("clan-modal").catch(() => undefined);
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(pages).toContain("page-clan");
-    // Without the tab the modal lands on its default my-clans view, which is
-    // not what the action is labelled.
-    expect(opened).toEqual([{ tab: "browse" }]);
   });
 
   it("closes on Escape while the trigger still holds focus", async () => {
@@ -632,9 +576,7 @@ describe("UsernameInput verified name", () => {
 
     expect(el.isVerified()).toBe(true);
     expect(el.getUsername()).toBe("RyanTheGreat");
-    // Only the active trailing button exists, so neither can be tabbed to or
-    // read out while it doesn't apply.
-    expect(q(el, CHANGE)).not.toBeNull();
+    expect(q(el, CHANGE)).toBeNull();
     expect(q(el, TOGGLE)).toBeNull();
   });
 
@@ -651,7 +593,7 @@ describe("UsernameInput verified name", () => {
 
     expect(el.isVerified()).toBe(false);
     expect(el.getUsername()).toBe("MyCoolName");
-    expect(q(el, TOGGLE)).not.toBeNull();
+    expect(q(el, TOGGLE)).toBeNull();
   });
 
   // The cohort has to be recorded, not recomputed: one boot later the new
@@ -696,32 +638,28 @@ describe("UsernameInput verified name", () => {
 
     expect(el.isVerified()).toBe(false);
     expect(el.getUsername()).toBe("MyCoolName");
-    expect(q(el, TOGGLE)).not.toBeNull();
+    expect(q(el, TOGGLE)).toBeNull();
     expect(q(el, CHANGE)).toBeNull();
   });
 
   // Leaving the default unpersisted is what keeps a later opt-out
   // distinguishable from it.
-  it("does not persist the default, and records an explicit opt-out", async () => {
+  it("does not persist the default", async () => {
     const el = await mount();
     await signIn(el, premiumUser());
+    expect(el.isVerified()).toBe(true);
     expect(localStorage.getItem("useVerifiedName")).toBeNull();
-
-    q(el, CHANGE)!.click();
-    await el.updateComplete;
-
-    expect(localStorage.getItem("useVerifiedName")).toBe("false");
-    expect(el.isVerified()).toBe(false);
   });
 
-  it("renders the free-text field and an off-state toggle when ineligible", async () => {
+  it("renders the free-text field, and no toggle, when ineligible", async () => {
     const el = await mount();
     await signIn(el, {
       player: { username: null, usernameBase: null, usernameStatus: "none" },
     } as unknown as UserMeResponse);
 
     expect(el.isVerified()).toBe(false);
-    expect(q(el, TOGGLE)).not.toBeNull();
+    expect(q(el, 'input[aria-label="username.enter_username"]')).not.toBeNull();
+    expect(q(el, TOGGLE)).toBeNull();
     expect(q(el, CHANGE)).toBeNull();
   });
 
@@ -741,28 +679,8 @@ describe("UsernameInput verified name", () => {
     expect(
       el.querySelector('svg[aria-label="username.verified_player"]'),
     ).not.toBeNull();
-    expect(q(el, CHANGE)).not.toBeNull();
+    expect(q(el, CHANGE)).toBeNull();
     expect(q(el, TOGGLE)).toBeNull();
-  });
-
-  it("restores the stored custom name when switching back", async () => {
-    // Starts opted out so the round trip begins on the free-form name; the
-    // default-on case is covered above.
-    localStorage.setItem("useVerifiedName", "false");
-    localStorage.setItem("username", "MyCoolName");
-    const el = await mount();
-    await signIn(el, premiumUser());
-    expect(el.getUsername()).toBe("MyCoolName");
-
-    q(el, 'button[aria-pressed="false"]')!.click();
-    await el.updateComplete;
-    expect(el.isVerified()).toBe(true);
-    expect(el.getUsername()).toBe("RyanTheGreat");
-
-    q(el, 'button[aria-label="username.verified_use_custom"]')!.click();
-    await el.updateComplete;
-    expect(el.isVerified()).toBe(false);
-    expect(el.getUsername()).toBe("MyCoolName");
   });
 
   it("stays on the free-text name when the account is not eligible", async () => {
@@ -1138,7 +1056,7 @@ describe("UsernameInput claim grace, live behaviour", () => {
 });
 
 // Spec (10 Sept 2026): a subscriber whose bare name someone else holds is not
-// eligible, and the button says why instead of silently doing nothing.
+// eligible to play verified.
 describe("UsernameInput held bare name", () => {
   it("does not lock the box to a suffixed account name", async () => {
     localStorage.setItem("username", "MyCoolName");
@@ -1146,35 +1064,6 @@ describe("UsernameInput held bare name", () => {
     await signIn(el, heldNameUser());
     expect(el.isVerified()).toBe(false);
     expect(el.getUsername()).toBe("MyCoolName");
-    expect(q(el, TOGGLE)).not.toBeNull();
-  });
-
-  it("explains the held name and offers the rename form", async () => {
-    const el = await mount();
-    await signIn(el, heldNameUser());
-    expect(q(el, TOGGLE)!.getAttribute("title")).toContain(
-      "username.verified_held_hint",
-    );
-
-    showInGameConfirm.mockResolvedValueOnce(true);
-    q(el, TOGGLE)!.click();
-    await settle();
-
-    expect(showInGameConfirm).toHaveBeenCalledTimes(1);
-    expect(showInGameConfirm.mock.calls[0][0]).toContain(
-      'username.verified_held_body:{"name":"RyanTheGreat"}',
-    );
-    expect(window.location.hash).toBe("#modal=change-username");
-    expect(el.isVerified()).toBe(false);
-  });
-
-  it("stays put when the player declines the rename", async () => {
-    const el = await mount();
-    await signIn(el, heldNameUser());
-    window.location.hash = "";
-    q(el, TOGGLE)!.click();
-    await settle();
-    expect(window.location.hash).toBe("");
-    expect(el.isVerified()).toBe(false);
+    expect(q(el, TOGGLE)).toBeNull();
   });
 });

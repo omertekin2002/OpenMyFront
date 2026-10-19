@@ -288,7 +288,11 @@ describe("DetailedGameViewModal and a userMeResponse that went out before it loa
   });
 });
 
-describe("DetailedGameViewModal and a confirmed backend outage", () => {
+// Upstream these drove the real ServerList module to a confirmed outage. A
+// self-host has no server-list API (serverListSite() is undefined), so the
+// module never confirms one; the cards must keep working with the network
+// down all the same.
+describe("DetailedGameViewModal with the network down", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
 
   /**
@@ -335,15 +339,19 @@ describe("DetailedGameViewModal and a confirmed backend outage", () => {
     vi.unstubAllGlobals();
   });
 
-  /** Two unanswered attempts in a row, which is what confirms an outage. */
-  async function confirmOutage(): Promise<void> {
+  /**
+   * Two unanswered attempts in a row, which upstream confirms an outage. On a
+   * self-host the module asks nothing, so nothing is ever confirmed.
+   */
+  async function takeNetworkDown(): Promise<void> {
     await ensureServerList();
     await retryServerList();
-    expect(backendUnreachableConfirmed()).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(backendUnreachableConfirmed()).toBe(false);
   }
 
-  it("still joins a public card when it mounted during a confirmed outage", async () => {
-    await confirmOutage();
+  it("still joins a public card when it mounted with the network down", async () => {
+    await takeNetworkDown();
     await remountModal();
 
     const card = cardButton("public-1");
@@ -357,8 +365,8 @@ describe("DetailedGameViewModal and a confirmed backend outage", () => {
     expect(wiggle).not.toHaveBeenCalled();
   });
 
-  it("still opens the join modal for a hosted card during that outage", async () => {
-    await confirmOutage();
+  it("still opens the join modal for a hosted card with the network down", async () => {
+    await takeNetworkDown();
     await remountModal();
     await pushLobbies({ hosted: [lobby("hosted-1", "hosted")] });
 
@@ -367,8 +375,8 @@ describe("DetailedGameViewModal and a confirmed backend outage", () => {
     expect(joinModalOpen).toHaveBeenCalledWith({ lobbyId: "hosted-1" });
   });
 
-  it("does not dim its cards during that outage", async () => {
-    await confirmOutage();
+  it("does not dim its cards with the network down", async () => {
+    await takeNetworkDown();
     await remountModal();
 
     expect(modal.querySelectorAll('button[aria-disabled="true"]').length).toBe(
@@ -396,11 +404,11 @@ describe("DetailedGameViewModal and a confirmed backend outage", () => {
     expect(joinLobby).toHaveBeenCalled();
   });
 
-  it("still refuses on a DESKTOP reason during an outage", async () => {
+  it("still refuses on a DESKTOP reason with the network down", async () => {
     // The control that keeps this from being "the gate was deleted": the
     // update state is a statement about this client rather than about any
-    // server, so it refuses the same card the outage may not.
-    await confirmOutage();
+    // server, so it refuses the same card the network cannot.
+    await takeNetworkDown();
     await remountModal();
     await setUpdateState({ status: "staged", bytes: 0, total: 0 });
 

@@ -220,9 +220,11 @@ describe("crownRelationship", () => {
     );
   });
 
-  it("does not treat other type wildcards as owning a crown", () => {
+  it("owns every crown on a self-host, whatever the flares", () => {
     expect(
       crownRelationship(crown, makeUserMe(["pattern:*", "flag:*"]), null),
-    ).toBe("blocked");
+    ).toBe("owned");
+    expect(crownRelationship(crown, makeUserMe([]), null)).toBe("owned");
+    expect(crownRelationship(crown, false, null)).toBe("owned");
   });
 });

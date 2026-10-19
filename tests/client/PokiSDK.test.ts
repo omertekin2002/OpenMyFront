@@ -1,4 +1,3 @@
-import { Howler } from "howler";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PokiSDK } from "../../src/client/PokiSDK";
 
@@ -176,27 +175,8 @@ describe("PokiSDK", () => {
       await sdk.gameplayStop();
       expect(poki.gameplayStart).toHaveBeenCalledOnce();
       expect(poki.gameplayStop).toHaveBeenCalledOnce();
-    });
-
-    it("stops gameplay and mutes audio for a commercial break", async () => {
-      const mute = vi.spyOn(Howler, "mute");
-      poki.commercialBreak = vi.fn(async (onStart?: () => void) => {
-        onStart?.();
-        expect(mute).toHaveBeenLastCalledWith(true);
-      });
-      await sdk.gameplayStart();
-      await sdk.requestMidgameAd();
-      expect(poki.gameplayStop).toHaveBeenCalledOnce();
-      expect(mute).toHaveBeenLastCalledWith(false);
-    });
-
-    it("unmutes even when the commercial break fails", async () => {
-      const mute = vi.spyOn(Howler, "mute");
-      poki.commercialBreak = vi.fn(async () => {
-        throw new Error("ad error");
-      });
-      await sdk.requestMidgameAd();
-      expect(mute).toHaveBeenLastCalledWith(false);
+      // No midgame ads on this self-host.
+      expect(poki.commercialBreak).not.toHaveBeenCalled();
     });
 
     it("reads the invite game id from the Poki URL param", async () => {
@@ -342,6 +322,5 @@ describe("PokiSDK", () => {
     expect(appendChild).not.toHaveBeenCalled();
     expect(await sdk.getUserToken()).toBeNull();
     expect(await sdk.getInviteGameId()).toBeNull();
-    await sdk.requestMidgameAd();
   });
 });

@@ -13,9 +13,7 @@ vi.mock("../../src/client/Cosmetics", async (importOriginal) => ({
   prewarmCosmetics: cosmeticsMocks.prewarmCosmetics,
 }));
 
-import { gamePortal } from "../../src/client/GamePortal";
 import {
-  MIDGAME_AD_DEADLINE_MS,
   SinglePlayerModal,
   START_PREPARE_DEADLINE_MS,
 } from "../../src/client/SinglePlayerModal";
@@ -282,100 +280,6 @@ describe("SinglePlayerModal start feedback", () => {
 
     // The retired attempt must not clear the live attempt's busy state.
     expect(internals(modal).starting).toBe(true);
-  });
-
-  // An ad routinely outruns the preparation deadline, so its own bound has to
-  // sit well above it — otherwise the ad bound would be the thing cutting
-  // real creatives short.
-  it("bounds the ad well above the preparation deadline", () => {
-    expect(MIDGAME_AD_DEADLINE_MS).toBeGreaterThan(START_PREPARE_DEADLINE_MS);
-  });
-
-  // Regression: the ad used to be raced against the preparation deadline, so
-  // a normal 15-30s creative was cut off at 15s and the game was dispatched
-  // underneath it — the player landing in spawn selection behind a live ad
-  // overlay. The ad has to gate the start.
-  it("does not cut a midgame ad short at the preparation deadline", async () => {
-    vi.useFakeTimers();
-    let finishAd: () => void = () => {};
-    vi.spyOn(gamePortal, "requestMidgameAd").mockReturnValue(
-      new Promise<void>((resolve) => {
-        finishAd = resolve;
-      }),
-    );
-
-    const started = internals(modal).startGame();
-    await vi.advanceTimersByTimeAsync(START_PREPARE_DEADLINE_MS + 5_000);
-
-    // Still watching the ad — nothing may have started.
-    expect(joins).toHaveLength(0);
-
-    finishAd();
-    await started;
-
-    expect(joins).toHaveLength(1);
-    vi.useRealTimers();
-  });
-
-  // An ad shown for a game that will never start is worse than no ad: the
-  // player watches it, and nothing happens. The liveness check has to sit
-  // before the ad request, not only after it.
-  it("does not request an ad for a start abandoned by closing the modal", async () => {
-    let releaseCosmetics: (c: PlayerCosmetics) => void = () => {};
-    cosmeticsMocks.getPlayerCosmetics.mockReturnValueOnce(
-      new Promise<PlayerCosmetics>((resolve) => {
-        releaseCosmetics = resolve;
-      }),
-    );
-    const requestAd = vi
-      .spyOn(gamePortal, "requestMidgameAd")
-      .mockResolvedValue(undefined);
-
-    const started = internals(modal).startGame();
-    await flush();
-    internals(modal).onClose();
-    releaseCosmetics({});
-    await started;
-
-    expect(requestAd).not.toHaveBeenCalled();
-    expect(joins).toHaveLength(0);
-  });
-
-  // And it has to sit after the ad too: an ad runs long enough that the modal
-  // can be closed while it plays.
-  it("does not start a game abandoned while the ad was playing", async () => {
-    let finishAd: () => void = () => {};
-    vi.spyOn(gamePortal, "requestMidgameAd").mockReturnValue(
-      new Promise<void>((resolve) => {
-        finishAd = resolve;
-      }),
-    );
-
-    const started = internals(modal).startGame();
-    await flush();
-    internals(modal).onClose();
-    finishAd();
-    await started;
-
-    expect(joins).toHaveLength(0);
-  });
-
-  // The ad still cannot pin the button forever: an SDK that fires neither
-  // adFinished nor adError has to be given up on eventually.
-  it("gives up on an ad that never signals completion", async () => {
-    vi.useFakeTimers();
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    vi.spyOn(gamePortal, "requestMidgameAd").mockReturnValue(
-      new Promise<void>(() => {}),
-    );
-
-    const started = internals(modal).startGame();
-    await vi.advanceTimersByTimeAsync(MIDGAME_AD_DEADLINE_MS);
-    await started;
-
-    expect(joins).toHaveLength(1);
-    expect(internals(modal).starting).toBe(false);
-    vi.useRealTimers();
   });
 
   // The prewarm is what keeps the click off the network in the first place:

@@ -877,11 +877,11 @@ describe("PublicLobbySocket.start on a page its own game server rendered", () =>
     socket.stop();
   });
 
-  // The rescue, end to end on the same page and the same list: once the
-  // socket has given up, that server has proven it cannot answer, and the
-  // reload goes through the page host — which the load balancer answers
-  // from a live deployment. So the newer version IS news now.
-  it("prompts once its socket has given up, though the same list said fallback", async () => {
+  // Upstream this is the rescue: once the socket has given up, the list's
+  // newer build is news, and the reload goes through the page host. A
+  // self-host never fetches the list (serverListSite() is undefined), so it
+  // has no newer build to offer and never prompts.
+  it("never prompts once its socket has given up: there is no list to update from", async () => {
     // Prod's shape: the page is served behind the apex, so reloadForUpdate
     // re-enters through openfront.io and the load balancer answers from a
     // live deployment — the reload cannot come back to this dead host.
@@ -908,7 +908,7 @@ describe("PublicLobbySocket.start on a page its own game server rendered", () =>
     (socket as any).handleClose(...ABNORMAL_CLOSE);
     await Promise.resolve();
     await Promise.resolve();
-    expect(onUpdateAvailable).toHaveBeenCalledTimes(1);
+    expect(onUpdateAvailable).not.toHaveBeenCalled();
     socket.stop();
   });
 
@@ -1011,10 +1011,9 @@ describe("PublicLobbySocket.start on a page its own game server rendered", () =>
     socket.stop();
   });
 
-  it("still prompts a Worker-served page on the very same list", async () => {
-    // The control: nothing about the list changed, only whether the page
-    // names a server. A page that names none reloads into `latest`, so
-    // "outdated" is true news there.
+  it("never prompts a Worker-served page either", async () => {
+    // Upstream a page that names no server reloads into `latest`, so the
+    // list's "outdated" is true news there. With no list, nothing is.
     bootstrap({});
     const onUpdateAvailable = vi.fn();
     const socket = new PublicLobbySocket(vi.fn(), {
@@ -1025,7 +1024,7 @@ describe("PublicLobbySocket.start on a page its own game server rendered", () =>
     await socket.start();
     socket.stop();
 
-    expect(onUpdateAvailable).toHaveBeenCalledTimes(1);
+    expect(onUpdateAvailable).not.toHaveBeenCalled();
   });
 });
 

@@ -53,19 +53,22 @@ afterEach(() => {
   ClientEnv.reset();
 });
 
-describe("getApiBase localhost fallback", () => {
+// OpenMyFront has no central API: every account/shop call goes to a
+// same-origin endpoint the server answers with a 404 (see Master.ts), so a
+// page never probes a local-network address like localhost:8787.
+const API_BASE = `${window.location.origin}/api/noapi`;
+
+describe("getApiBase on a self-host", () => {
   beforeEach(() => {
     localStorage.clear();
-    // getAudience() now reads the audience from BOOTSTRAP_CONFIG, so the
-    // localhost branch is reached via jwtAudience "localhost".
     setConfig("localhost");
   });
 
-  // API_DOMAIN is forced empty under vitest via the vite.config `define`, so this
-  // regression test exercises the fallback branch deterministically regardless of
-  // any API_DOMAIN in the host shell / CI.
-  it("falls back to http://localhost:8787 on localhost when apiHost is not set and API_DOMAIN is empty", () => {
-    expect(getApiBase()).toBe("http://localhost:8787");
+  it("uses the page's own /api/noapi on localhost, never localhost:8787", () => {
+    expect(getApiBase()).toBe(API_BASE);
+    // Not even when a developer override is stored.
+    localStorage.setItem("apiHost", "http://localhost:8787");
+    expect(getApiBase()).toBe(API_BASE);
   });
 });
 
@@ -75,13 +78,13 @@ describe("getAudience / getApiBase from BOOTSTRAP_CONFIG", () => {
   it("returns the configured audience (desktop staging)", () => {
     setConfig("openfront.dev");
     expect(getAudience()).toBe("openfront.dev");
-    expect(getApiBase()).toBe("https://api.openfront.dev");
+    expect(getApiBase()).toBe(API_BASE);
   });
 
   it("returns the configured audience (prod)", () => {
     setConfig("openfront.io");
     expect(getAudience()).toBe("openfront.io");
-    expect(getApiBase()).toBe("https://api.openfront.io");
+    expect(getApiBase()).toBe(API_BASE);
   });
 });
 
@@ -389,7 +392,7 @@ describe("claimReward", () => {
       currency: { soft: 150, hard: 0 },
     });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("https://api.openfront.io/rewards/7/claim");
+    expect(url).toBe(`${API_BASE}/rewards/7/claim`);
     expect(init.method).toBe("POST");
   });
 
