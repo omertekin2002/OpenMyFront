@@ -805,7 +805,6 @@ export class GameModeSelector extends LitElement {
     return true;
   }
 
-
   private openDetailedView = () => {
     if (!this.validateUsername()) return;
     window.showPage?.("page-detailed-view");
