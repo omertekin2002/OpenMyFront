@@ -2,5 +2,6 @@
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "printWidth": 80,
   "sortImports": false,
-  "sortPackageJson": false
+  "sortPackageJson": false,
+  "ignorePatterns": ["resources/cosmetics/cosmetics.json"]
 }
