@@ -469,19 +469,6 @@ describe("reloadWouldRescue", () => {
       },
     },
   };
-  // The same, plus a draining server this page's build can still use.
-  const STILL_SERVED = {
-    latest: OWN,
-    servers: {
-      ...NEWER.servers,
-      c: {
-        host: "falk2-a.openfront.io",
-        numWorkers: 16,
-        version: OLD,
-        state: "draining",
-      },
-    },
-  };
 
   beforeEach(() => {
     fetchMock.mockImplementation(async () => jsonResponse(NEWER));
@@ -577,11 +564,6 @@ describe("reloadWouldRescue", () => {
 // shells that must not be navigated cannot be remembered in one and
 // forgotten in the other.
 describe("redirectToGameVersion", () => {
-  // Letter c runs OLD in API_LIST; the page is built from OWN.
-  async function withList() {
-    expect(await ensureServerList()).toBe("api");
-  }
-
   it("stays put with no list loaded", async () => {
     const loc = stubLocation("openfront.io", "/game/cAbCd12345");
     expect(redirectToGameVersion("cAbCd12345")).toBe(false);
