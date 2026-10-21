@@ -14,26 +14,28 @@ services:
     name: openmyfront
     runtime: docker
     dockerfilePath: ./Dockerfile
-    plan: standard          # 2 GB RAM. "free"/"starter" (512 MB) work for light
-                            # testing — drop NUM_WORKERS to 1 if you use them.
+    # 2 GB RAM. "free"/"starter" (512 MB) work for light
+    # testing — drop NUM_WORKERS to 1 if you use them.
+    plan: standard
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
       - key: GAME_ENV
-        value: dev          # bypasses Turnstile + private API backend
+        value: dev # bypasses Turnstile + private API backend
+      # standalone host: skip central-API pollers
+      # (ranked check-in, cosmetics, archiving), the
+      # winner-verification replay and auto-scheduled
+      # public lobbies; bundled cosmetics catalog.
+      # See ServerEnv.selfHost().
       - key: SELF_HOST
-        value: "true"       # standalone host: skip central-API pollers
-                            # (ranked check-in, cosmetics, archiving), the
-                            # winner-verification replay and auto-scheduled
-                            # public lobbies; bundled cosmetics catalog.
-                            # See ServerEnv.selfHost().
+        value: "true"
       - key: NUM_WORKERS
-        value: "2"          # game-server worker processes (per CPU/RAM budget)
+        value: "2" # game-server worker processes (per CPU/RAM budget)
       - key: TURNSTILE_SITE_KEY
-        value: 1x00000000000000000000AA   # Cloudflare test key (always passes)
+        value: 1x00000000000000000000AA # Cloudflare test key (always passes)
       - key: DOMAIN
-        value: localhost    # JWT audience; keeps issuer internal. Fine for anon play.
+        value: localhost # JWT audience; keeps issuer internal. Fine for anon play.
       - key: GIT_COMMIT
-        value: render       # fallback; start.sh swaps in RENDER_GIT_COMMIT
+        value: render # fallback; start.sh swaps in RENDER_GIT_COMMIT
       - key: PORT
-        value: "80"         # nginx listens on 80; tell Render to route there
+        value: "80" # nginx listens on 80; tell Render to route there

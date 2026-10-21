@@ -34,6 +34,8 @@ function setBootstrapConfig() {
 
 beforeEach(async () => {
   setBootstrapConfig();
+  // logOut() POSTs /auth/logout; keep the harness off the network.
+  vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("offline"));
   await logOut();
   vi.restoreAllMocks();
 });

@@ -582,7 +582,9 @@ body.halloween-theme:not(.in-game)
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body.halloween-theme:not(.in-game) desktop-nav-bar img[src*="OpenMyFrontLogo"],
+  body.halloween-theme:not(.in-game)
+    desktop-nav-bar
+    img[src*="OpenMyFrontLogo"],
   body.halloween-theme:not(.in-game) mobile-nav-bar img[src*="OpenMyFrontLogo"],
   body.halloween-theme:not(.in-game)
     play-page

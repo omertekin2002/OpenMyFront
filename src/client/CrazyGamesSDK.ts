@@ -366,7 +366,6 @@ export class CrazyGamesSDK {
       return null;
     }
   }
-
 }
 
 export const crazyGamesSDK = new CrazyGamesSDK();
