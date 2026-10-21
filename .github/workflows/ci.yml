@@ -1,0 +1,57 @@
+# Lean CI for OpenMyFront: the same checks you run locally, on every PR (into
+# any branch) and on pushes to main and agent/improvements. Render deploys from
+# main on its own, so nothing here deploys or needs secrets.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, agent/improvements]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: typecheck
+            run: npm run typecheck
+            timeout: 15
+          - name: lint
+            run: npm run lint:github
+            timeout: 15
+          - name: format
+            run: npm run format:check
+            timeout: 10
+          - name: test
+            run: npx vitest run
+            timeout: 30
+          # build-prod also runs vite and scripts/buildAssetHashes.ts, the
+          # steps the Render Docker build depends on.
+          - name: build
+            run: npm run build-prod
+            timeout: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      # .npmrc sets engine-strict and package.json requires npm 12, newer than
+      # the npm bundled with Node 24 (same step as the Dockerfile and README).
+      - run: npm install --global --ignore-scripts npm@12.1.0
+      - run: npm run inst
+      - run: ${{ matrix.run }}
