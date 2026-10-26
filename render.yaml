@@ -8,6 +8,9 @@
 # private OpenFront API backend, so anonymous play works with no external
 # services. (Account login will NOT work without that backend — that's
 # expected for a personal/self-host.)
+#
+# scripts/docker-smoke.sh builds this image and boots it with the env below
+# (CI runs it in the `docker` job), so check changes here with it.
 
 services:
   - type: web
