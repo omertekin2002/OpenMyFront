@@ -33,6 +33,14 @@ GIT_COMMIT="${GIT_COMMIT:-smoke}"
 IMAGE="${SMOKE_IMAGE:-openmyfront-smoke:local}"
 CONTAINER="${SMOKE_CONTAINER:-openmyfront-smoke}"
 HEALTH_TIMEOUT="${SMOKE_HEALTH_TIMEOUT:-180}"
+# A non-number would make the timeout test below error out, and the health loop
+# would never time out.
+case "$HEALTH_TIMEOUT" in
+  "" | *[!0-9]*)
+    echo "SMOKE_HEALTH_TIMEOUT must be whole seconds, got '$HEALTH_TIMEOUT'" >&2
+    exit 2
+    ;;
+esac
 
 # Stable markers from index.html that only the real app shell contains (the
 # build doesn't minify it: vite.config.ts sets createHtmlPlugin minify: false).
@@ -86,7 +94,7 @@ if [ "${SMOKE_SKIP_BUILD:-}" != 1 ]; then
     . || fail "docker build failed"
 fi
 
-# The env render.yaml sets, except GIT_COMMIT: render.yaml's value is a
+# The env render.yaml sets (keep the two lists in sync), except GIT_COMMIT: render.yaml's value is a
 # placeholder that start.sh replaces with RENDER_GIT_COMMIT; here it is the
 # build's own commit, as in a real deploy.
 log "starting $CONTAINER"
@@ -101,10 +109,14 @@ docker run --detach --name "$CONTAINER" \
   --env PORT=80 \
   "$IMAGE" > /dev/null || fail "docker run failed"
 
-# Port 80 is published on a free host port Docker picks, so parallel runs and
-# whatever else listens on this machine can't collide with it.
-HOST_PORT="$(docker port "$CONTAINER" 80/tcp | head -n 1 | sed 's/.*://')"
-[ -n "$HOST_PORT" ] || fail "could not read the published port"
+# Port 80 is published on a free host port Docker picks, so nothing else
+# listening on this machine can collide with it. (The container name and image
+# tag are fixed, so run one smoke test at a time per Docker host.) docker port
+# fails once the container has exited, which a broken image can do at boot.
+HOST_PORT="$(docker port "$CONTAINER" 80/tcp 2> /dev/null | head -n 1 |
+  sed 's/.*://')" || true
+[ -n "$HOST_PORT" ] ||
+  fail "could not read the published port (did the container exit?)"
 BASE="http://127.0.0.1:$HOST_PORT"
 log "container port 80 is $BASE"
 
