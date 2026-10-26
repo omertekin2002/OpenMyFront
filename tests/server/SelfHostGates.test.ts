@@ -50,6 +50,8 @@ const realFetch = globalThis.fetch;
 let fetchStub: ReturnType<typeof vi.fn<typeof fetch>>;
 
 beforeEach(() => {
+  // Hosted unless a test turns self-host on, whatever the shell exported.
+  vi.stubEnv("SELF_HOST", "false");
   vi.stubEnv("DOMAIN", "example.com");
   vi.stubEnv("API_KEY", "test-api-key");
   // Nothing here may reach the network: every outbound call lands on this.
@@ -74,7 +76,16 @@ describe.each([
   ["self-host", true],
   ["hosted", false],
 ])("join gates (%s)", (_, on) => {
-  beforeEach(() => selfHost(on));
+  // A lobby that admits someone starts broadcasting its info on a timer.
+  beforeEach(() => {
+    selfHost(on);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
 
   it(
     on
