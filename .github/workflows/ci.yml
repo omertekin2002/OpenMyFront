@@ -55,3 +55,19 @@ jobs:
       - run: npm install --global --ignore-scripts npm@12.1.0
       - run: npm run inst
       - run: ${{ matrix.run }}
+
+  # Builds the image Render deploys and boots it with render.yaml's env, then
+  # checks /api/health, the app shell at / and /commit.txt through nginx. Build
+  # only: no registry, no push, no secrets. Run it locally the same way:
+  # scripts/docker-smoke.sh
+  docker:
+    name: docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - run: scripts/docker-smoke.sh
+        env:
+          GIT_COMMIT: ${{ github.sha }}

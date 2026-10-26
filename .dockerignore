@@ -16,3 +16,4 @@ coverage*
 tests/
 scripts/replay/
 scripts/split-packages/
+scripts/docker-smoke.sh
